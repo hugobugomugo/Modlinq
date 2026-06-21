@@ -24,9 +24,7 @@ class ApiService {
       _container!.read(localeProvider.notifier).state = Locale(localeCode);
     }
 
-    if (_modManager == null) {
-      _modManager = ModManagerService(_configService!, _container!);
-    }
+    _modManager ??= ModManagerService(_configService!, _container!);
   }
 
   static Future<List<ModInfo>> getMods() async {
@@ -98,13 +96,23 @@ class ApiService {
     }
   }
 
+  static Future<void> setCurrentGame(GameType game) async {
+    await initialize();
+    final gameStr = game == GameType.wutheringWaves ? 'ww' : 'zzz';
+    await _configService!.setCurrentGame(gameStr);
+    _container?.read(selectedGameProvider.notifier).state = game;
+  }
+
   static Future<Map<String, String>> getConfig() async {
     try {
       await initialize();
       return {
-        'mods_path': _configService!.modsPath ?? '',
-        'save_mods_path': _configService!.saveModsPath ?? '',
+        'mods_path': _configService!.zzzModsPath ?? '',
+        'save_mods_path': _configService!.zzzSaveModsPath ?? '',
+        'mods_path_ww': _configService!.wwModsPath ?? '',
+        'save_mods_path_ww': _configService!.wwSaveModsPath ?? '',
         'language': _configService!.language,
+        'current_game': _configService!.currentGame,
       };
     } catch (e) {
       throw Exception('getConfig error: $e');
@@ -120,10 +128,15 @@ class ApiService {
   static Future<String> updateConfig({
     required String modsPath,
     required String saveModsPath,
+    String? wwModsPath,
+    String? wwSaveModsPath,
   }) async {
     try {
       await initialize();
-      await _configService!.setPaths(modsPath, saveModsPath);
+      await _configService!.setZzzPaths(modsPath, saveModsPath);
+      if (wwModsPath != null && wwSaveModsPath != null) {
+        await _configService!.setWwPaths(wwModsPath, wwSaveModsPath);
+      }
       return 'Config saved';
     } catch (e) {
       throw Exception('updateConfig error: $e');

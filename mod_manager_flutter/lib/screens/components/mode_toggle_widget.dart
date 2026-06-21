@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/constants.dart';
 import '../../utils/state_providers.dart';
 
 class ModeToggleWidget extends StatelessWidget {
@@ -11,12 +10,12 @@ class ModeToggleWidget extends StatelessWidget {
   final Function(ActivationMode) onModeChanged;
 
   const ModeToggleWidget({
-    Key? key,
+    super.key,
     required this.modeToggleAnimationController,
     required this.modeToggleAnimation,
     required this.activationMode,
     required this.onModeChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +35,11 @@ class _ModeToggleContent extends ConsumerWidget {
   final Function(ActivationMode) onModeChanged;
 
   const _ModeToggleContent({
-    Key? key,
     required this.modeToggleAnimationController,
     required this.modeToggleAnimation,
     required this.activationMode,
     required this.onModeChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,18 +51,18 @@ class _ModeToggleContent extends ConsumerWidget {
         height: 38,
         decoration: BoxDecoration(
           color: isDarkMode 
-              ? const Color(0xFF1F2937).withOpacity(0.6)
+              ? const Color(0xFF1F2937).withValues(alpha: 0.6)
               : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(19),
           border: Border.all(
             color: isDarkMode 
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.06),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
+              color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -117,7 +115,7 @@ class _ModeToggleContent extends ConsumerWidget {
                             animationValue: animProgress,
                             waveAmplitude: 3.0,
                             waveFrequency: 1.5,
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
                         ),
                       ),
@@ -128,7 +126,7 @@ class _ModeToggleContent extends ConsumerWidget {
                             animationValue: animProgress,
                             waveAmplitude: 2.2,
                             waveFrequency: 2.0,
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             phaseShift: pi / 2,
                           ),
                         ),
@@ -140,7 +138,7 @@ class _ModeToggleContent extends ConsumerWidget {
                             animationValue: animProgress,
                             waveAmplitude: 1.5,
                             waveFrequency: 2.5,
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             phaseShift: pi,
                           ),
                         ),
@@ -154,7 +152,7 @@ class _ModeToggleContent extends ConsumerWidget {
                               end: Alignment(0.5 + (animProgress * 3.0), 0.5),
                               colors: [
                                 Colors.transparent,
-                                Colors.white.withOpacity(0.25),
+                                Colors.white.withValues(alpha: 0.25),
                                 Colors.transparent,
                               ],
                               stops: const [0.0, 0.5, 1.0],
@@ -181,13 +179,13 @@ class _ModeToggleContent extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(17),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.5),
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.5),
                     blurRadius: 16,
                     offset: const Offset(0, 2),
                     spreadRadius: 1,
                   ),
                   BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                     blurRadius: 24,
                     offset: const Offset(0, 4),
                   ),
@@ -253,8 +251,8 @@ class _ModeToggleContent extends ConsumerWidget {
             color: isActive 
                 ? Colors.white
                 : isDarkMode 
-                    ? Colors.white.withOpacity(0.5)
-                    : Colors.black.withOpacity(0.5),
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : Colors.black.withValues(alpha: 0.5),
             letterSpacing: 0.3,
           ),
           child: Text(label),

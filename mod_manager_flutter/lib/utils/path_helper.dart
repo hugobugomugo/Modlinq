@@ -42,18 +42,21 @@ class PathHelper {
     return _appDataPath!;
   }
 
-  /// Get the path for mod_images directory
-  /// This uses user's home directory to ensure write permissions
-  /// Path: 
-  ///   Windows: %APPDATA%\zzz-mod-manager\mod_images
-  ///   Linux: ~/.local/share/zzz-mod-manager/mod_images
-  static String getModImagesPath() {
-    if (_modImagesPath != null) {
+  /// Get the path for mod_images directory for a specific game.
+  /// Defaults to 'zzz' for backward compatibility.
+  /// Paths:
+  ///   Windows: %APPDATA%\zzz-mod-manager\mod_images[_ww]
+  ///   Linux: ~/.local/share/zzz-mod-manager/mod_images[_ww]
+  static String getModImagesPath({String game = 'zzz'}) {
+    if (game == 'zzz' && _modImagesPath != null) {
       return _modImagesPath!;
     }
 
     try {
-      _modImagesPath = path.join(getAppDataPath(), 'mod_images');
+      final dirName = game == 'zzz' ? 'mod_images' : 'mod_images_$game';
+      final result = path.join(getAppDataPath(), dirName);
+      if (game == 'zzz') _modImagesPath = result;
+      return result;
     } catch (e) {
       // Fallback for development (relative to current directory)
       final possiblePaths = [
@@ -65,21 +68,20 @@ class PathHelper {
       for (final possiblePath in possiblePaths) {
         final dir = Directory(possiblePath);
         if (dir.existsSync()) {
-          _modImagesPath = possiblePath;
-          return _modImagesPath!;
+          if (game == 'zzz') _modImagesPath = possiblePath;
+          return possiblePath;
         }
       }
-      
-      // Last resort fallback
-      _modImagesPath = path.join(Directory.current.path, '..', 'assets', 'mod_images');
-    }
 
-    return _modImagesPath!;
+      final fallback = path.join(Directory.current.path, '..', 'assets', 'mod_images');
+      if (game == 'zzz') _modImagesPath = fallback;
+      return fallback;
+    }
   }
 
-  /// Ensure the mod_images directory exists
-  static Future<void> ensureModImagesDirectoryExists() async {
-    final dir = Directory(getModImagesPath());
+  /// Ensure the mod_images directory exists for a given game
+  static Future<void> ensureModImagesDirectoryExists({String game = 'zzz'}) async {
+    final dir = Directory(getModImagesPath(game: game));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }

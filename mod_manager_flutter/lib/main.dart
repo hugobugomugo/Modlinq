@@ -137,8 +137,8 @@ class _MyAppState extends ConsumerState<MyApp> {
         cardTheme: CardThemeData(
           elevation: isDarkMode ? 8 : 4,
           shadowColor: isDarkMode
-              ? Colors.black.withOpacity(0.3)
-              : Colors.black.withOpacity(0.1),
+              ? Colors.black.withValues(alpha: 0.3)
+              : Colors.black.withValues(alpha: 0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -147,7 +147,7 @@ class _MyAppState extends ConsumerState<MyApp> {
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             elevation: 4,
-            shadowColor: const Color(0xFF0EA5E9).withOpacity(0.3),
+            shadowColor: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -159,16 +159,16 @@ class _MyAppState extends ConsumerState<MyApp> {
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
               color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.1),
             ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
               color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.1),
             ),
           ),
           focusedBorder: OutlineInputBorder(
@@ -262,6 +262,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
     final currentTab = ref.watch(tabIndexProvider);
     final isDarkMode = ref.watch(isDarkModeProvider);
     final isSidebarCollapsed = ref.watch(sidebarCollapsedProvider);
+    final selectedGame = ref.watch(selectedGameProvider);
     final loc = context.loc;
 
     return Scaffold(
@@ -300,16 +301,16 @@ class _MainScreenState extends ConsumerState<MainScreen>
                       border: Border(
                         right: BorderSide(
                           color: isDarkMode
-                              ? Colors.white.withOpacity(0.05)
-                              : Colors.black.withOpacity(0.03),
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.black.withValues(alpha: 0.03),
                           width: 1,
                         ),
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: isDarkMode
-                              ? Colors.black.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.05),
+                              ? Colors.black.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.05),
                           blurRadius: 15,
                           offset: const Offset(2, 0),
                         ),
@@ -370,7 +371,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                                         BoxShadow(
                                           color: const Color(
                                             0xFF0EA5E9,
-                                          ).withOpacity(0.3),
+                                          ).withValues(alpha: 0.3),
                                           blurRadius: 15,
                                           spreadRadius: 2,
                                         ),
@@ -391,9 +392,9 @@ class _MainScreenState extends ConsumerState<MainScreen>
                             shaderCallback: (bounds) => const LinearGradient(
                               colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)],
                             ).createShader(bounds),
-                            child: const Text(
-                              'ZZZ',
-                              style: TextStyle(
+                            child: Text(
+                              selectedGame == GameType.wutheringWaves ? 'WW' : 'ZZZ',
+                              style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -1,
@@ -414,6 +415,20 @@ class _MainScreenState extends ConsumerState<MainScreen>
                           const SizedBox(height: 40),
                         ] else ...[
                           const SizedBox(height: 20),
+                        ],
+                        // Game switcher
+                        if (!isSidebarCollapsed) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildGameSwitcher(context, selectedGame, isDarkMode),
+                          ),
+                          const SizedBox(height: 16),
+                        ] else ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: _buildGameSwitcherCollapsed(context, selectedGame),
+                          ),
+                          const SizedBox(height: 8),
                         ],
                         // Navigation
                         AnimationLimiter(
@@ -476,13 +491,13 @@ class _MainScreenState extends ConsumerState<MainScreen>
                               ),
                               decoration: BoxDecoration(
                                 color: isDarkMode
-                                    ? Colors.white.withOpacity(0.05)
-                                    : Colors.black.withOpacity(0.03),
+                                    ? Colors.white.withValues(alpha: 0.05)
+                                    : Colors.black.withValues(alpha: 0.03),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isDarkMode
-                                      ? Colors.white.withOpacity(0.1)
-                                      : Colors.black.withOpacity(0.05),
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : Colors.black.withValues(alpha: 0.05),
                                 ),
                               ),
                               child: Text(
@@ -546,27 +561,27 @@ class _MainScreenState extends ConsumerState<MainScreen>
             end: Alignment.bottomRight,
             colors: isDarkMode
                 ? [
-                    const Color(0xFF1A1A1A).withOpacity(0.95),
-                    const Color(0xFF0F0F0F).withOpacity(0.95),
+                    const Color(0xFF1A1A1A).withValues(alpha: 0.95),
+                    const Color(0xFF0F0F0F).withValues(alpha: 0.95),
                   ]
                 : [
-                    Colors.white.withOpacity(0.95),
-                    const Color(0xFFF5F5F5).withOpacity(0.95),
+                    Colors.white.withValues(alpha: 0.95),
+                    const Color(0xFFF5F5F5).withValues(alpha: 0.95),
                   ],
           ),
           border: Border(
             bottom: BorderSide(
               color: isDarkMode
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.black.withOpacity(0.03),
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.03),
               width: 1,
             ),
           ),
           boxShadow: [
             BoxShadow(
               color: isDarkMode
-                  ? Colors.black.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.05),
+                  ? Colors.black.withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -586,7 +601,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -659,16 +674,128 @@ class _MainScreenState extends ConsumerState<MainScreen>
         child: InkWell(
           onTap: onPressed,
           hoverColor: isClose
-              ? Colors.red.withOpacity(0.8)
+              ? Colors.red.withValues(alpha: 0.8)
               : (isDarkMode
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.black.withOpacity(0.05)),
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.05)),
           child: Icon(
             icon,
             size: 16,
             color: isDarkMode
-                ? Colors.white.withOpacity(0.7)
-                : Colors.black.withOpacity(0.7),
+                ? Colors.white.withValues(alpha: 0.7)
+                : Colors.black.withValues(alpha: 0.7),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameSwitcher(BuildContext context, GameType selected, bool isDarkMode) {
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _buildGameButton(
+            label: 'ZZZ',
+            game: GameType.zzz,
+            selected: selected,
+            isDarkMode: isDarkMode,
+          ),
+          _buildGameButton(
+            label: 'WW',
+            game: GameType.wutheringWaves,
+            selected: selected,
+            isDarkMode: isDarkMode,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameSwitcherCollapsed(BuildContext context, GameType selected) {
+    return Column(
+      children: [
+        _buildGameIconButton(game: GameType.zzz, selected: selected, label: 'ZZZ'),
+        const SizedBox(height: 4),
+        _buildGameIconButton(game: GameType.wutheringWaves, selected: selected, label: 'WW'),
+      ],
+    );
+  }
+
+  Widget _buildGameButton({
+    required String label,
+    required GameType game,
+    required GameType selected,
+    required bool isDarkMode,
+  }) {
+    final isActive = selected == game;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(selectedGameProvider.notifier).state = game,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            gradient: isActive
+                ? const LinearGradient(
+                    colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)],
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isActive
+                ? [BoxShadow(color: const Color(0xFF0EA5E9).withValues(alpha: 0.3), blurRadius: 6)]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isActive ? Colors.white : Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameIconButton({
+    required GameType game,
+    required GameType selected,
+    required String label,
+  }) {
+    final isActive = selected == game;
+    return GestureDetector(
+      onTap: () => ref.read(selectedGameProvider.notifier).state = game,
+      child: Tooltip(
+        message: game == GameType.zzz ? 'Zenless Zone Zero' : 'Wuthering Waves',
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 48,
+          height: 28,
+          decoration: BoxDecoration(
+            gradient: isActive
+                ? const LinearGradient(colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)])
+                : null,
+            color: isActive ? null : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isActive ? Colors.white : Colors.grey[600],
+              ),
+            ),
           ),
         ),
       ),
@@ -713,7 +840,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF0EA5E9).withOpacity(0.4),
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.4),
                             blurRadius: 12,
                             spreadRadius: 1,
                             offset: const Offset(0, 4),

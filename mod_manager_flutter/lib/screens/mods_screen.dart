@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,12 +16,12 @@ import '../services/api_service.dart';
 import '../services/archive_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/zzz_characters.dart';
+import '../utils/ww_characters.dart';
 import '../utils/path_helper.dart';
 import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
 import 'components/character_cards_list_widget.dart';
 import 'components/mod_card_widget.dart';
-import 'components/keybinds_widget.dart';
 
 class ModsScreen extends ConsumerStatefulWidget {
   const ModsScreen({super.key});
@@ -134,6 +133,11 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final loadedMods = await ApiService.getMods();
       final configService = await ApiService.getConfigService();
       final favoriteSet = configService.favoriteMods.toSet();
+      final currentGame = ref.read(selectedGameProvider);
+      final isWW = currentGame == GameType.wutheringWaves;
+      final gameCharacters = isWW ? wwCharacters : zzzCharacters;
+      final gameStr = isWW ? 'ww' : 'zzz';
+
       final Map<String, List<ModInfo>> characterMods = {};
       final List<ModInfo> allMods = [];
       final List<String> validModIds = [];
@@ -144,7 +148,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         String charId = modCharacterTags[oldMod.id] ?? 'unknown';
 
         if (charId == 'unknown') {
-          for (var char in zzzCharacters) {
+          for (var char in gameCharacters) {
             if (oldMod.id.toLowerCase().contains(char.toLowerCase()) ||
                 oldMod.name.toLowerCase().contains(char.toLowerCase())) {
               charId = char;
@@ -154,7 +158,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         }
 
         final localImagePath = path.join(
-          PathHelper.getModImagesPath(),
+          PathHelper.getModImagesPath(game: gameStr),
           '${oldMod.id}.png',
         );
         final localImageFile = File(localImagePath);
@@ -212,12 +216,16 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       }
 
       characters.addAll(
-        zzzCharacters
+        gameCharacters
             .map((charId) {
+              final displayName = isWW
+                  ? getWwCharacterDisplayName(charId)
+                  : getCharacterDisplayName(charId);
+              final assetFolder = isWW ? 'assets/characters_ww' : 'assets/characters';
               return CharacterInfo(
                 id: charId,
-                name: getCharacterDisplayName(charId),
-                iconPath: 'assets/characters/$charId.png',
+                name: displayName,
+                iconPath: '$assetFolder/$charId.png',
                 skins: characterMods[charId] ?? [],
               );
             })
@@ -527,7 +535,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                 color: (isDisabled
                         ? const Color(0xFFF59E0B)
                         : const Color(0xFF64748B))
-                    .withOpacity(0.4),
+                    .withValues(alpha: 0.4),
                 blurRadius: 12,
                 spreadRadius: 1,
                 offset: const Offset(0, 4),
@@ -571,7 +579,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     (autoF10Enabled
                             ? const Color(0xFF10B981)
                             : const Color(0xFFEF4444))
-                        .withOpacity(0.4),
+                        .withValues(alpha: 0.4),
                 blurRadius: 12,
                 spreadRadius: 1,
                 offset: const Offset(0, 4),
@@ -599,7 +607,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0EA5E9).withOpacity(0.3),
+              color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
               blurRadius: 8,
               spreadRadius: 1,
             ),
@@ -651,7 +659,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6366F1).withOpacity(0.3),
+              color: const Color(0xFF6366F1).withValues(alpha: 0.3),
               blurRadius: 8,
               spreadRadius: 1,
             ),
@@ -896,7 +904,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               valueListenable: selectedChar,
               builder: (context, value, _) {
                 return DropdownButtonFormField<String>(
-                  value: zzzCharacters.contains(value)
+                  initialValue: zzzCharacters.contains(value)
                       ? value
                       : zzzCharacters.first,
                   decoration: InputDecoration(
@@ -921,7 +929,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                               width: 24,
                               height: 24,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
+                              errorBuilder: (_, _, _) => Icon(
                                 Icons.person,
                                 size: 24,
                                 color: Colors.grey[600],
@@ -951,17 +959,18 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           ),
           FilledButton(
             onPressed: () async {
+              final nav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               await _saveTag(mod.id, selectedChar.value);
               await loadMods(showLoading: false);
-              Navigator.pop(context);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(loc.t('mods.snackbar.tag_saved')),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
+              if (!mounted) return;
+              nav.pop();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(loc.t('mods.snackbar.tag_saved')),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
             },
             child: Text(loc.t('mods.dialog.save')),
           ),
@@ -971,7 +980,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   void _showEditKeybindDialog(ModInfo mod, KeybindInfo keybind) {
-    final keyController = TextEditingController(text: keybind.keyValue ?? '');
+    final controllers = {
+      for (final entry in keybind.keys.entries)
+        entry.key: TextEditingController(text: entry.value),
+    };
 
     showDialog(
       context: context,
@@ -988,64 +1000,57 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Press the key combination you want to use:',
-              style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: keyController,
-              decoration: InputDecoration(
-                labelText: 'Key Combination',
-                hintText: 'e.g., VK_F1, CTRL VK_A',
-                prefixIcon: const Icon(Icons.keyboard, color: Color(0xFFFBBF24)),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF334155)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B).withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF334155)),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF334155)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFFBBF24), width: 2),
+                child: const Text(
+                  'Tip: For cycle variables (e.g. \$swapvar = 0, 1, 2), move your preferred default to the first position to persist that variant across reloads.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                 ),
               ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B).withOpacity(0.5),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Common keys:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFE2E8F0),
+              const SizedBox(height: 16),
+              ...keybind.keys.entries.map((entry) {
+                final isKeyField = entry.key.toLowerCase() == 'key';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextField(
+                    controller: controllers[entry.key],
+                    autofocus: isKeyField,
+                    decoration: InputDecoration(
+                      labelText: entry.key,
+                      hintText: isKeyField ? 'e.g., VK_F1, CTRL VK_A' : null,
+                      prefixIcon: Icon(
+                        isKeyField ? Icons.keyboard : Icons.tune,
+                        color: const Color(0xFFFBBF24),
+                        size: 20,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFFBBF24), width: 2),
+                      ),
                     ),
                   ),
-                  SizedBox(height: 6),
-                  Text(
-                    'VK_F1 to VK_F12, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT\nCTRL, ALT, SHIFT, no_alt, no_shift, no_CTRL',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                );
+              }),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1054,12 +1059,15 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           ),
           FilledButton(
             onPressed: () async {
-              final newKey = keyController.text.trim();
-              if (newKey.isNotEmpty) {
-                await _saveKeybindChange(mod, keybind, newKey);
-                Navigator.pop(context);
-                await loadMods(showLoading: false);
-              }
+              final nav = Navigator.of(context);
+              final updatedValues = {
+                for (final entry in controllers.entries)
+                  if (entry.value.text.trim().isNotEmpty)
+                    entry.key: entry.value.text.trim(),
+              };
+              await _saveKeybindValues(mod, keybind, updatedValues);
+              nav.pop();
+              await loadMods(showLoading: false);
             },
             child: const Text('Save'),
           ),
@@ -1068,11 +1076,11 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
   }
 
-  Future<void> _saveKeybindChange(ModInfo mod, KeybindInfo keybind, String newKey) async {
+  Future<void> _saveKeybindValues(ModInfo mod, KeybindInfo keybind, Map<String, String> updatedValues) async {
     try {
       final modManagerService = await ApiService.getModManagerService();
       final modsPath = modManagerService.modsPath;
-      
+
       if (modsPath == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1084,7 +1092,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
       final modPath = path.join(modsPath, mod.id);
       final modDir = Directory(modPath);
-      
+
       if (!await modDir.exists()) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1110,34 +1118,44 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       }
 
       for (final iniFile in iniFiles) {
-        String content = await iniFile.readAsString();
-        final lines = content.split('\n');
+        final lines = (await iniFile.readAsString()).split('\n');
         bool inTargetSection = false;
-        bool updated = false;
+        final pendingUpdates = Map<String, String>.from(updatedValues);
 
         for (int i = 0; i < lines.length; i++) {
-          final line = lines[i].trim();
-          
-          if (line.toLowerCase() == '[${keybind.section.toLowerCase()}]') {
+          final trimmed = lines[i].trim();
+
+          if (trimmed.toLowerCase() == '[${keybind.section.toLowerCase()}]') {
             inTargetSection = true;
             continue;
           }
-          if (line.startsWith('[') && line.endsWith(']')) {
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            if (inTargetSection) break;
             inTargetSection = false;
+            continue;
           }
-          if (inTargetSection && line.toLowerCase().startsWith('key =')) {
-            lines[i] = 'key = $newKey';
-            updated = true;
-            break;
+
+          if (inTargetSection && trimmed.contains('=')) {
+            final eqIdx = trimmed.indexOf('=');
+            final fieldKey = trimmed.substring(0, eqIdx).trim();
+            final matchKey = pendingUpdates.keys.firstWhere(
+              (k) => k.toLowerCase() == fieldKey.toLowerCase(),
+              orElse: () => '',
+            );
+            if (matchKey.isNotEmpty) {
+              lines[i] = '$fieldKey = ${pendingUpdates[matchKey]}';
+              pendingUpdates.remove(matchKey);
+            }
           }
         }
 
-        if (updated) {
+        final updatedCount = updatedValues.length - pendingUpdates.length;
+        if (updatedCount > 0) {
           await iniFile.writeAsString(lines.join('\n'));
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Keybind updated: ${keybind.displayName} → $newKey'),
+                content: Text('Saved $updatedCount field(s) in [${keybind.section}]'),
                 backgroundColor: const Color(0xFF10B981),
               ),
             );
@@ -1197,8 +1215,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF1E293B).withOpacity(0.8),
-                          const Color(0xFF0F172A).withOpacity(0.9),
+                          const Color(0xFF1E293B).withValues(alpha: 0.8),
+                          const Color(0xFF0F172A).withValues(alpha: 0.9),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -1227,7 +1245,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                             color: const Color(0xFF0F172A),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: const Color(0xFFFBBF24).withOpacity(0.3),
+                              color: const Color(0xFFFBBF24).withValues(alpha: 0.3),
                               width: 1.5,
                             ),
                           ),
@@ -1380,6 +1398,14 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     final currentSkins = ref.watch(currentCharacterSkinsProvider);
     final isDarkMode = ref.watch(isDarkModeProvider);
 
+    ref.listen<GameType>(selectedGameProvider, (previous, next) async {
+      if (previous != next) {
+        await ApiService.setCurrentGame(next);
+        await _loadTags();
+        loadMods();
+      }
+    });
+
     if (isLoading) {
       return Center(
         child: Column(
@@ -1399,7 +1425,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                           blurRadius: 20,
                           spreadRadius: 5,
                         ),
@@ -1486,8 +1512,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               border: Border(
                 bottom: BorderSide(
                   color: isDarkMode
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.black.withOpacity(0.05),
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -1514,7 +1540,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                         decoration: BoxDecoration(
                           color: const Color(
                             AppConstants.activeModBorderColor,
-                          ).withOpacity(0.1),
+                          ).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(
                             AppConstants.smallPadding,
                           ),
@@ -1600,7 +1626,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     decoration: BoxDecoration(
                       color: const Color(
                         AppConstants.activeModCountColor,
-                      ).withOpacity(0.1),
+                      ).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         AppConstants.smallPadding,
                       ),
@@ -1811,15 +1837,15 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               end: Alignment.bottomRight,
               colors: _isDragging
                   ? [
-                      const Color(0xFF0EA5E9).withOpacity(0.3),
-                      const Color(0xFF06B6D4).withOpacity(0.3),
+                      const Color(0xFF0EA5E9).withValues(alpha: 0.3),
+                      const Color(0xFF06B6D4).withValues(alpha: 0.3),
                     ]
                   : [
                       isDarkMode
-                          ? const Color(0xFF1F2937).withOpacity(0.5)
+                          ? const Color(0xFF1F2937).withValues(alpha: 0.5)
                           : const Color(0xFFF9FAFB),
                       isDarkMode
-                          ? const Color(0xFF111827).withOpacity(0.5)
+                          ? const Color(0xFF111827).withValues(alpha: 0.5)
                           : const Color(0xFFF3F4F6),
                     ],
             ),
@@ -1827,15 +1853,15 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               color: _isDragging
                   ? const Color(0xFF0EA5E9)
                   : isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.08),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.08),
               width: _isDragging ? 2.5 : 2,
               strokeAlign: BorderSide.strokeAlignInside,
             ),
             boxShadow: _isDragging
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -1843,8 +1869,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                 : [
                     BoxShadow(
                       color: isDarkMode
-                          ? Colors.black.withOpacity(0.2)
-                          : Colors.grey.withOpacity(0.1),
+                          ? Colors.black.withValues(alpha: 0.2)
+                          : Colors.grey.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1860,10 +1886,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: _isDragging
-                        ? const Color(0xFF0EA5E9).withOpacity(0.2)
+                        ? const Color(0xFF0EA5E9).withValues(alpha: 0.2)
                         : (isDarkMode
-                              ? Colors.white.withOpacity(0.05)
-                              : Colors.black.withOpacity(0.03)),
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.black.withValues(alpha: 0.03)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -1872,8 +1898,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     color: _isDragging
                         ? const Color(0xFF0EA5E9)
                         : (isDarkMode
-                              ? Colors.white.withOpacity(0.6)
-                              : Colors.black.withOpacity(0.4)),
+                              ? Colors.white.withValues(alpha: 0.6)
+                              : Colors.black.withValues(alpha: 0.4)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1887,8 +1913,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     color: _isDragging
                         ? const Color(0xFF0EA5E9)
                         : (isDarkMode
-                              ? Colors.white.withOpacity(0.7)
-                              : Colors.black.withOpacity(0.6)),
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : Colors.black.withValues(alpha: 0.6)),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1902,8 +1928,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     style: TextStyle(
                       fontSize: 12,
                       color: isDarkMode
-                          ? Colors.white.withOpacity(0.5)
-                          : Colors.black.withOpacity(0.4),
+                          ? Colors.white.withValues(alpha: 0.5)
+                          : Colors.black.withValues(alpha: 0.4),
                     ),
                   ),
                 ),
@@ -1941,7 +1967,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               BoxShadow(
                 color: const Color(
                   AppConstants.activeModBorderColor,
-                ).withOpacity(0.3),
+                ).withValues(alpha: 0.3),
                 blurRadius: AppConstants.modCardBlurRadiusActive,
                 spreadRadius: AppConstants.modCardSpreadRadiusActive,
               ),
@@ -1962,7 +1988,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                           width: double.infinity,
                         )
                       : Container(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           child: Icon(
                             Icons.image_not_supported,
                             size: 32,
@@ -2331,10 +2357,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -2462,10 +2488,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                 ),
               ),
               child: const Row(

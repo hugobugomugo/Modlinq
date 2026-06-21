@@ -168,6 +168,12 @@ class ModManagerService {
 
       await _configService.addActiveMod(modName);
 
+      if (_configService.persistModSettings) {
+        await _restoreModPersistState(modName);
+      } else {
+        await _clearD3dxUserIniEntries(modName);
+      }
+
       final autoF10Enabled = _container.read(autoF10ReloadProvider);
       if (autoF10Enabled) {
         await _platformService.sendF10ToGame();
@@ -273,6 +279,12 @@ class ModManagerService {
 
       await _configService.removeActiveMod(modName);
 
+      if (_configService.persistModSettings) {
+        await _snapshotModPersistState(modName);
+      } else {
+        await _resetModPersistDefaults(modName);
+      }
+
       final autoF10Enabled = _container.read(autoF10ReloadProvider);
       if (autoF10Enabled) {
         await _platformService.sendF10ToGame();
@@ -282,6 +294,163 @@ class ModManagerService {
     } catch (e) {
       print('ModManagerService: deactivateMod error: $e');
       return false;
+    }
+  }
+
+  File? _d3dxUserIni() {
+    if (saveModsPath == null) return null;
+    return File(path.join(path.dirname(path.normalize(saveModsPath!)), 'd3dx_user.ini'));
+  }
+
+  Future<void> _snapshotModPersistState(String modName) async {
+    try {
+      final file = _d3dxUserIni();
+      if (file == null || !await file.exists()) return;
+
+      final prefix = r'$\mods\' + modName.toLowerCase() + r'\';
+      final state = <String, String>{};
+      for (final line in await file.readAsLines()) {
+        final t = line.trim();
+        if (t.startsWith(prefix) && t.contains(' = ')) {
+          final eq = t.indexOf(' = ');
+          state[t.substring(0, eq)] = t.substring(eq + 3);
+        }
+      }
+      print('ModManagerService: snapshot for "$modName" captured ${state.length} entries (prefix: $prefix)');
+      if (state.isNotEmpty) {
+        await _configService.saveModPersistState(modName, state);
+      }
+    } catch (e) {
+      print('ModManagerService: _snapshotModPersistState error: $e');
+    }
+  }
+
+  Future<void> _restoreModPersistState(String modName) async {
+    try {
+      final saved = _configService.getModPersistState(modName);
+      if (saved == null || saved.isEmpty) return;
+      if (modsPath == null) return;
+
+      final prefix = r'$\mods\' + modName.toLowerCase() + r'\';
+
+      // Group saved entries by relative INI file path (lowercase keys from d3dx_user.ini)
+      final byFile = <String, Map<String, String>>{};
+      for (final entry in saved.entries) {
+        if (!entry.key.startsWith(prefix)) continue;
+        final remainder = entry.key.substring(prefix.length);
+        final lastBackslash = remainder.lastIndexOf(r'\');
+        if (lastBackslash < 0) continue;
+        byFile.putIfAbsent(remainder.substring(0, lastBackslash), () => {})[remainder.substring(lastBackslash + 1)] = entry.value;
+      }
+
+      print('ModManagerService: restoring "$modName" across ${byFile.length} INI files');
+
+      for (final fileEntry in byFile.entries) {
+        final iniFile = await _findFileIgnoreCase(path.join(modsPath!, modName), fileEntry.key);
+        if (iniFile == null) {
+          print('ModManagerService: restore - not found: ${fileEntry.key}');
+          continue;
+        }
+
+        final lines = await iniFile.readAsLines();
+        bool modified = false;
+        for (int i = 0; i < lines.length; i++) {
+          final lower = lines[i].toLowerCase();
+          if (!lower.contains('persist')) continue;
+          for (final varEntry in fileEntry.value.entries) {
+            if (lower.contains('\$${varEntry.key.toLowerCase()}')) {
+              final eqIdx = lines[i].indexOf('=');
+              if (eqIdx >= 0) {
+                lines[i] = '${lines[i].substring(0, eqIdx + 1)} ${varEntry.value}';
+                modified = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (modified) {
+          await iniFile.writeAsString(lines.join('\n'));
+          print('ModManagerService: updated defaults in ${iniFile.path}');
+        }
+      }
+
+      // Clear d3dx_user.ini entries so INI defaults aren't overridden on reload
+      await _clearD3dxUserIniEntries(modName);
+    } catch (e) {
+      print('ModManagerService: _restoreModPersistState error: $e');
+    }
+  }
+
+  Future<File?> _findFileIgnoreCase(String dirPath, String relPath) async {
+    try {
+      final parts = relPath.replaceAll(r'\', '/').split('/');
+      String currentPath = dirPath;
+      for (final part in parts) {
+        final dir = Directory(currentPath);
+        if (!await dir.exists()) return null;
+        final entries = await dir.list().toList();
+        FileSystemEntity? match;
+        for (final entry in entries) {
+          if (path.basename(entry.path).toLowerCase() == part.toLowerCase()) {
+            match = entry;
+            break;
+          }
+        }
+        if (match == null) return null;
+        currentPath = match.path;
+      }
+      final f = File(currentPath);
+      return await f.exists() ? f : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearD3dxUserIniEntries(String modName) async {
+    try {
+      final file = _d3dxUserIni();
+      if (file == null || !await file.exists()) return;
+      final prefix = r'$\mods\' + modName.toLowerCase() + r'\';
+      final lines = await file.readAsLines();
+      final filtered = lines.where((l) => !l.trimLeft().startsWith(prefix)).toList();
+      if (filtered.length != lines.length) {
+        await file.writeAsString(filtered.join('\n'));
+      }
+    } catch (e) {
+      print('ModManagerService: _clearD3dxUserIniEntries error: $e');
+    }
+  }
+
+  Future<void> _resetModPersistDefaults(String modName) async {
+    try {
+      if (modsPath != null) {
+        final modDir = Directory(path.join(modsPath!, modName));
+        if (await modDir.exists()) {
+          await for (final entity in modDir.list(recursive: true)) {
+            if (entity is! File || !entity.path.toLowerCase().endsWith('.ini')) continue;
+            final lines = await entity.readAsLines();
+            bool modified = false;
+            for (int i = 0; i < lines.length; i++) {
+              final lower = lines[i].toLowerCase();
+              if (!lower.contains('persist') || !lines[i].contains('=')) continue;
+              final eqIdx = lines[i].indexOf('=');
+              if (lines[i].substring(eqIdx + 1).trim() != '0') {
+                lines[i] = '${lines[i].substring(0, eqIdx + 1)} 0';
+                modified = true;
+              }
+            }
+            if (modified) {
+              await entity.writeAsString(lines.join('\n'));
+              print('ModManagerService: reset persist defaults in ${entity.path}');
+            }
+          }
+        }
+      }
+      await _configService.clearModPersistState(modName);
+      await _clearD3dxUserIniEntries(modName);
+    } catch (e) {
+      print('ModManagerService: _resetModPersistDefaults error: $e');
     }
   }
 
@@ -508,6 +677,53 @@ class ModManagerService {
       }
     }
 
+    // Wuthering Waves character aliases
+    final wwCharacterAliases = <String, List<String>>{
+      'aalto': ['aalto'],
+      'baizhi': ['baizhi'],
+      'brant': ['brant'],
+      'calcharo': ['calcharo'],
+      'camellya': ['camellya'],
+      'cantarella': ['cantarella'],
+      'carlotta': ['carlotta'],
+      'changli': ['changli'],
+      'chixia': ['chixia'],
+      'ciaccona': ['ciaccona'],
+      'danjin': ['danjin'],
+      'encore': ['encore'],
+      'jianxin': ['jianxin'],
+      'jiyan': ['jiyan'],
+      'jinhsi': ['jinhsi'],
+      'lingyang': ['lingyang'],
+      'lumi': ['lumi'],
+      'mortefi': ['mortefi'],
+      'phoebe': ['phoebe'],
+      'roccia': ['roccia'],
+      'rover_spectro': ['rover spectro', 'roverspectro', 'spectro rover'],
+      'rover_havoc': ['rover havoc', 'roverhavoc', 'havoc rover'],
+      'sanhua': ['sanhua'],
+      'shorekeeper': ['shorekeeper'],
+      'taoqi': ['taoqi'],
+      'verina': ['verina'],
+      'xiangliyao': ['xiangliyao', 'xiangli yao'],
+      'yinlin': ['yinlin'],
+      'youhu': ['youhu'],
+      'yuanwu': ['yuanwu'],
+      'zani': ['zani'],
+      'zhezhi': ['zhezhi'],
+    };
+
+    for (final entry in wwCharacterAliases.entries) {
+      final charId = entry.key;
+      for (final alias in entry.value) {
+        final pattern = RegExp(r'\b' + RegExp.escape(alias) + r'\b', caseSensitive: false);
+        if (pattern.hasMatch(normalizedName)) {
+          print('ModManager: detected WW "$charId" (alias: "$alias") in "$modName"');
+          return charId;
+        }
+      }
+    }
+
     print('ModManager: no character detected for "$modName"');
     return null;
   }
@@ -565,6 +781,49 @@ class ModManagerService {
       for (final alias in entry.value) {
         final pattern = RegExp(r'\b' + RegExp.escape(alias) + r'\b', caseSensitive: false);
         if (pattern.hasMatch(textLower)) return charId;
+      }
+    }
+
+    // Wuthering Waves aliases
+    const wwAliases = <String, List<String>>{
+      'aalto': ['aalto'],
+      'baizhi': ['baizhi'],
+      'brant': ['brant'],
+      'calcharo': ['calcharo'],
+      'camellya': ['camellya'],
+      'cantarella': ['cantarella'],
+      'carlotta': ['carlotta'],
+      'changli': ['changli'],
+      'chixia': ['chixia'],
+      'ciaccona': ['ciaccona'],
+      'danjin': ['danjin'],
+      'encore': ['encore'],
+      'jianxin': ['jianxin'],
+      'jiyan': ['jiyan'],
+      'jinhsi': ['jinhsi'],
+      'lingyang': ['lingyang'],
+      'lumi': ['lumi'],
+      'mortefi': ['mortefi'],
+      'phoebe': ['phoebe'],
+      'roccia': ['roccia'],
+      'rover_spectro': ['rover spectro', 'roverspectro'],
+      'rover_havoc': ['rover havoc', 'roverhavoc'],
+      'sanhua': ['sanhua'],
+      'shorekeeper': ['shorekeeper'],
+      'taoqi': ['taoqi'],
+      'verina': ['verina'],
+      'xiangliyao': ['xiangliyao', 'xiangli yao'],
+      'yinlin': ['yinlin'],
+      'youhu': ['youhu'],
+      'yuanwu': ['yuanwu'],
+      'zani': ['zani'],
+      'zhezhi': ['zhezhi'],
+    };
+
+    for (final entry in wwAliases.entries) {
+      for (final alias in entry.value) {
+        final pattern = RegExp(r'\b' + RegExp.escape(alias) + r'\b', caseSensitive: false);
+        if (pattern.hasMatch(textLower)) return entry.key;
       }
     }
 

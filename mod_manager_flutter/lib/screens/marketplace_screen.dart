@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -96,8 +95,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         boxShadow: [
           BoxShadow(
             color: isDarkMode
-                ? Colors.black.withOpacity(0.4)
-                : Colors.black.withOpacity(0.08),
+                ? Colors.black.withValues(alpha: 0.4)
+                : Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -145,13 +144,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: isDarkMode
-                    ? Colors.white.withOpacity(0.05)
-                    : Colors.black.withOpacity(0.03),
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.03),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDarkMode
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.black.withOpacity(0.08),
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
               ),
               child: Row(
@@ -346,7 +345,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isDarkMode 
-                        ? Colors.green.shade900.withOpacity(0.3) 
+                        ? Colors.green.shade900.withValues(alpha: 0.3) 
                         : Colors.green.shade50,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(

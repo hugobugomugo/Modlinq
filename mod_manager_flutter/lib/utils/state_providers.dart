@@ -168,3 +168,14 @@ final allModsDisabledProvider = NotifierProvider<_BoolNotifier, bool>(
 final savedActiveModsProvider = NotifierProvider<_StringListNotifier, List<String>>(
   _StringListNotifier.new,
 );
+
+enum GameType { zzz, wutheringWaves }
+
+class _GameTypeNotifier extends Notifier<GameType> {
+  @override
+  GameType build() => GameType.zzz;
+}
+
+final selectedGameProvider = NotifierProvider<_GameTypeNotifier, GameType>(
+  _GameTypeNotifier.new,
+);

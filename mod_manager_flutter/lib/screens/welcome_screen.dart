@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
 import '../l10n/app_localizations.dart';
@@ -194,7 +193,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0EA5E9).withOpacity(0.4),
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.4),
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -287,7 +286,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
@@ -353,14 +352,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
                               color: isSelected
                                   ? Colors.transparent
                                   : (isDarkMode
-                                      ? Colors.white.withOpacity(0.1)
-                                      : Colors.black.withOpacity(0.1)),
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : Colors.black.withValues(alpha: 0.1)),
                               width: 2,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF0EA5E9).withOpacity(0.4),
+                                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.4),
                                       blurRadius: 20,
                                       spreadRadius: 2,
                                     ),
@@ -413,7 +412,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
@@ -483,7 +482,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withOpacity(0.4),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: 5,
                   ),
@@ -531,8 +530,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : Colors.black.withOpacity(0.1),
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
@@ -559,16 +558,16 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.1),
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.black.withValues(alpha: 0.1),
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.1),
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.black.withValues(alpha: 0.1),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -610,8 +609,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
         border: Border(
           top: BorderSide(
             color: isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.1),
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.1),
           ),
         ),
       ),

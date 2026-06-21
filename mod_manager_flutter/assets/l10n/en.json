@@ -154,6 +154,8 @@
     },
     "sections": {
       "paths": "Mod directories",
+      "paths_zzz": "Zenless Zone Zero — Mod directories",
+      "paths_ww": "Wuthering Waves — Mod directories",
       "language": "Language",
       "auto_tag": "Automatic tagging",
       "auto_f10": "Automatic mod reload",

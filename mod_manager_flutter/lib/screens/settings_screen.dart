@@ -18,9 +18,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProviderStateMixin {
   final _modsPathController = TextEditingController();
   final _saveModsPathController = TextEditingController();
+  final _wwModsPathController = TextEditingController();
+  final _wwSaveModsPathController = TextEditingController();
   bool isLoading = false;
   String _selectedLanguage = 'en';
   bool _isUpdatingLanguage = false;
+  bool _persistModSettings = true;
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -46,6 +49,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     _loadingAnimationController.dispose();
     _modsPathController.dispose();
     _saveModsPathController.dispose();
+    _wwModsPathController.dispose();
+    _wwSaveModsPathController.dispose();
     super.dispose();
   }
 
@@ -53,10 +58,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     setState(() => isLoading = true);
     try {
       final config = await ApiService.getConfig();
+      final configService = await ApiService.getConfigService();
       setState(() {
         _modsPathController.text = config['mods_path'] ?? '';
         _saveModsPathController.text = config['save_mods_path'] ?? '';
+        _wwModsPathController.text = config['mods_path_ww'] ?? '';
+        _wwSaveModsPathController.text = config['save_mods_path_ww'] ?? '';
         _selectedLanguage = config['language'] ?? 'en';
+        _persistModSettings = configService.persistModSettings;
         isLoading = false;
       });
     } catch (e) {
@@ -78,12 +87,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     }
   }
 
+  Future<void> pickWwModsPath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null) {
+      setState(() => _wwModsPathController.text = result);
+    }
+  }
+
+  Future<void> pickWwSaveModsPath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null) {
+      setState(() => _wwSaveModsPathController.text = result);
+    }
+  }
+
   Future<void> saveConfig() async {
     final loc = context.loc;
     try {
       await ApiService.updateConfig(
         modsPath: _modsPathController.text,
         saveModsPath: _saveModsPathController.text,
+        wwModsPath: _wwModsPathController.text,
+        wwSaveModsPath: _wwSaveModsPathController.text,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
             color: Theme.of(context).cardColor,
             border: Border(
               bottom: BorderSide(
-                color: isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                color: isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -159,7 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                                     blurRadius: 20,
                                     spreadRadius: 5,
                                   ),
@@ -205,8 +230,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                           child: FadeInAnimation(child: widget),
                         ),
                         children: [
-                          // Paths Section
-                          _buildSectionTitle(loc.t('settings.sections.paths')),
+                          // ZZZ Paths Section
+                          _buildSectionTitle(loc.t('settings.sections.paths_zzz')),
                           const SizedBox(height: 16),
                           _buildPathField(
                             label: loc.t('settings.paths.mods'),
@@ -226,6 +251,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                             loc: loc,
                           ),
                           const SizedBox(height: 32),
+                          // WW Paths Section
+                          _buildSectionTitle(loc.t('settings.sections.paths_ww')),
+                          const SizedBox(height: 16),
+                          _buildPathField(
+                            label: loc.t('settings.paths.mods'),
+                            hint: loc.t('settings.paths.mods_hint'),
+                            controller: _wwModsPathController,
+                            onBrowse: pickWwModsPath,
+                            isDarkMode: isDarkMode,
+                            loc: loc,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildPathField(
+                            label: loc.t('settings.paths.save_mods'),
+                            hint: loc.t('settings.paths.save_mods_hint'),
+                            controller: _wwSaveModsPathController,
+                            onBrowse: pickWwSaveModsPath,
+                            isDarkMode: isDarkMode,
+                            loc: loc,
+                          ),
+                          const SizedBox(height: 32),
                           // Language Section
                           _buildSectionTitle(loc.t('settings.sections.language')),
                           const SizedBox(height: 16),
@@ -241,6 +287,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                           const SizedBox(height: 16),
                           _buildF10Section(loc, isDarkMode),
                           const SizedBox(height: 32),
+                          // Mod Settings Persistence Section
+                          _buildSectionTitle('Mod Settings Persistence'),
+                          const SizedBox(height: 16),
+                          _buildSettingRow(
+                            label: 'Persist settings across skin swaps',
+                            isDarkMode: isDarkMode,
+                            trailing: Switch(
+                              value: _persistModSettings,
+                              onChanged: (value) async {
+                                setState(() => _persistModSettings = value);
+                                final configService = await ApiService.getConfigService();
+                                await configService.setPersistModSettings(value);
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              'When enabled (default), in-game settings changed via keybinds are saved by 3DMigoto and restored when you switch back to a mod. Disable to always reset to defaults on deactivation.',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
                           // Appearance Section
                           _buildSectionTitle(loc.t('settings.sections.appearance')),
                           const SizedBox(height: 16),
@@ -251,7 +321,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               onChanged: (value) {
                                 ref.read(isDarkModeProvider.notifier).state = value;
                               },
-                              activeColor: const Color(0xFF0EA5E9),
+                              activeThumbColor: const Color(0xFF0EA5E9),
                             ),
                             isDarkMode: isDarkMode,
                           ),
@@ -277,10 +347,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.05),
+                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                                color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                               ),
                             ),
                             child: Row(
@@ -470,10 +540,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF8B5CF6).withOpacity(0.1),
+              color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -628,10 +698,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Column(
@@ -861,13 +931,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: autoF10Enabled 
-            ? const Color(0xFF10B981).withOpacity(0.1)
-            : const Color(0xFFEF4444).withOpacity(0.1),
+            ? const Color(0xFF10B981).withValues(alpha: 0.1)
+            : const Color(0xFFEF4444).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: autoF10Enabled 
-              ? const Color(0xFF10B981).withOpacity(0.3)
-              : const Color(0xFFEF4444).withOpacity(0.3),
+              ? const Color(0xFF10B981).withValues(alpha: 0.3)
+              : const Color(0xFFEF4444).withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -882,7 +952,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: (autoF10Enabled ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.4),
+                  color: (autoF10Enabled ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.4),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
@@ -926,7 +996,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
             onChanged: (value) {
               ref.read(autoF10ReloadProvider.notifier).state = value;
             },
-            activeColor: const Color(0xFF10B981),
+            activeThumbColor: const Color(0xFF10B981),
             inactiveThumbColor: const Color(0xFFEF4444),
           ),
         ],
@@ -1138,13 +1208,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                      color: isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                      color: isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
-                      color: isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                      color: isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -1186,7 +1256,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
         ),
       ),
       child: Row(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../models/keybind_info.dart';
 
 /// Віджет для відображення keybinds персонажа
@@ -42,10 +41,10 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
         horizontal: 16 * widget.scaleFactor,
       ),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8 * widget.scaleFactor),
         border: Border.all(
-          color: const Color(0xFF6366F1).withOpacity(0.3),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -69,7 +68,7 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
                   Text(
                     'Keybinds',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 13 * widget.scaleFactor,
                       fontWeight: FontWeight.w600,
                     ),
@@ -81,7 +80,7 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
                       vertical: 2 * widget.scaleFactor,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withOpacity(0.2),
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10 * widget.scaleFactor),
                     ),
                     child: Text(
@@ -97,7 +96,7 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
                   Icon(
                     _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                     size: 18 * widget.scaleFactor,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -131,15 +130,15 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF6366F1).withOpacity(0.2),
-            const Color(0xFF8B5CF6).withOpacity(0.2),
+            const Color(0xFF6366F1).withValues(alpha: 0.2),
+            const Color(0xFF8B5CF6).withValues(alpha: 0.2),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(6 * widget.scaleFactor),
         border: Border.all(
-          color: const Color(0xFF6366F1).withOpacity(0.3),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -149,7 +148,7 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
           Text(
             keybind.displayName,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 11 * widget.scaleFactor,
               fontWeight: FontWeight.w500,
             ),
@@ -161,10 +160,10 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
               vertical: 2 * widget.scaleFactor,
             ),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(4 * widget.scaleFactor),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -218,10 +217,10 @@ class KeybindsBadge extends StatelessWidget {
           vertical: 4 * scaleFactor,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF6366F1).withOpacity(0.2),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12 * scaleFactor),
           border: Border.all(
-            color: const Color(0xFF6366F1).withOpacity(0.5),
+            color: const Color(0xFF6366F1).withValues(alpha: 0.5),
             width: 1,
           ),
         ),

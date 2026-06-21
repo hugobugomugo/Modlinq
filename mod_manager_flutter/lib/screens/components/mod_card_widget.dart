@@ -10,13 +10,13 @@ class ModCardWidget extends StatefulWidget {
   final VoidCallback onFavoriteToggle;
 
   const ModCardWidget({
-    Key? key,
+    super.key,
     required this.mod,
     required this.isDarkMode,
     required this.modCharacterTags,
     required this.getCharacterName,
     required this.onFavoriteToggle,
-  }) : super(key: key);
+  });
 
   @override
   State<ModCardWidget> createState() => _ModCardWidgetState();
@@ -153,12 +153,12 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: const Color(0xFFFBBF24).withOpacity(0.3),
+                                        color: const Color(0xFFFBBF24).withValues(alpha: 0.3),
                                         width: 1.5,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: const Color(0xFFFBBF24).withOpacity(0.2),
+                                          color: const Color(0xFFFBBF24).withValues(alpha: 0.2),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         ),
@@ -187,7 +187,7 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                                 ),
                               // Кнопка favorite
                               Material(
-                                color: Colors.black.withOpacity(0.35),
+                                color: Colors.black.withValues(alpha: 0.35),
                                 borderRadius: BorderRadius.circular(12),
                                 child: InkWell(
                                   onTap: widget.onFavoriteToggle,
@@ -199,7 +199,7 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                                       size: 18,
                                       color: widget.mod.isFavorite
                                           ? const Color(0xFFFACC15)
-                                          : Colors.white.withOpacity(0.8),
+                                          : Colors.white.withValues(alpha: 0.8),
                                     ),
                                   ),
                                 ),

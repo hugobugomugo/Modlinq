@@ -94,7 +94,8 @@
       "active_mods": "Active mods"
     },
     "characters": {
-      "empty": "No characters found"
+      "empty": "No characters found",
+      "search": "Search…"
     },
     "empty": {
       "title": "Import mods",

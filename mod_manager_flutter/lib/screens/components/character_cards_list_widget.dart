@@ -33,6 +33,8 @@ class CharacterCardsListWidget extends ConsumerStatefulWidget {
 class _CharacterCardsListWidgetState
     extends ConsumerState<CharacterCardsListWidget> {
   late final ScrollController _scrollController;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _CharacterCardsListWidgetState
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,6 +63,17 @@ class _CharacterCardsListWidgetState
       );
     }
 
+    final query = _query.trim().toLowerCase();
+    final visibleCharacters = <(int, CharacterInfo)>[];
+    for (var i = 0; i < characters.length; i++) {
+      final c = characters[i];
+      if (query.isEmpty ||
+          c.name.toLowerCase().contains(query) ||
+          c.id.toLowerCase().contains(query)) {
+        visibleCharacters.add((i, c));
+      }
+    }
+
     final dragDevices = <PointerDeviceKind>{
       PointerDeviceKind.touch,
       PointerDeviceKind.mouse,
@@ -67,54 +81,104 @@ class _CharacterCardsListWidgetState
       PointerDeviceKind.stylus,
     };
 
-    return Listener(
-      onPointerSignal: (PointerSignalEvent event) {
-        if (event is PointerScrollEvent && _scrollController.hasClients) {
-          final delta = event.scrollDelta.dy != 0
-              ? event.scrollDelta.dy
-              : event.scrollDelta.dx;
-          if (delta == 0) return;
-          final position = _scrollController.position;
-          final newOffset = (position.pixels + delta).clamp(
-            position.minScrollExtent,
-            position.maxScrollExtent,
-          );
-          _scrollController.jumpTo(newOffset);
-        }
-      },
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: dragDevices,
-          physics: const BouncingScrollPhysics(),
-        ),
-        child: AnimationLimiter(
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal: AppConstants.defaultPadding,
-            ),
-            itemCount: characters.length,
-            itemBuilder: (context, index) {
-              return AnimationConfiguration.staggeredList(
-                position: index,
-                duration: AppConstants.fastAnimationDuration,
-                child: SlideAnimation(
-                  horizontalOffset: 30.0,
-                  child: FadeInAnimation(
-                    child: _buildCharacterCard(
-                      context,
-                      characters[index],
-                      index,
-                      index == widget.selectedIndex,
-                    ),
+    final searchField = Padding(
+      padding: EdgeInsets.only(left: AppConstants.defaultPadding),
+      child: SizedBox(
+        width: 170,
+        child: TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _query = value),
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            hintText: loc.t('mods.characters.search'),
+            prefixIcon: const Icon(Icons.search, size: 16),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.clear, size: 14),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
                   ),
-                ),
-              );
-            },
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 8,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       ),
+    );
+
+    return Row(
+      children: [
+        searchField,
+        Expanded(
+          child: visibleCharacters.isEmpty
+              ? Center(
+                  child: Text(
+                    loc.t('mods.characters.empty'),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                )
+              : Listener(
+                  onPointerSignal: (PointerSignalEvent event) {
+                    if (event is PointerScrollEvent &&
+                        _scrollController.hasClients) {
+                      final delta = event.scrollDelta.dy != 0
+                          ? event.scrollDelta.dy
+                          : event.scrollDelta.dx;
+                      if (delta == 0) return;
+                      final position = _scrollController.position;
+                      final newOffset = (position.pixels + delta).clamp(
+                        position.minScrollExtent,
+                        position.maxScrollExtent,
+                      );
+                      _scrollController.jumpTo(newOffset);
+                    }
+                  },
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      dragDevices: dragDevices,
+                      physics: const BouncingScrollPhysics(),
+                    ),
+                    child: AnimationLimiter(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        scrollDirection: Axis.horizontal,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppConstants.defaultPadding,
+                        ),
+                        itemCount: visibleCharacters.length,
+                        itemBuilder: (context, index) {
+                          final (originalIndex, character) =
+                              visibleCharacters[index];
+                          return AnimationConfiguration.staggeredList(
+                            position: index,
+                            duration: AppConstants.fastAnimationDuration,
+                            child: SlideAnimation(
+                              horizontalOffset: 30.0,
+                              child: FadeInAnimation(
+                                child: _buildCharacterCard(
+                                  context,
+                                  character,
+                                  originalIndex,
+                                  originalIndex == widget.selectedIndex,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 

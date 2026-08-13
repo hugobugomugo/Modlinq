@@ -14,6 +14,8 @@ class _DoubleNotifier extends Notifier<double> {
   _DoubleNotifier(this._initial);
   @override
   double build() => _initial;
+
+  void setValue(double value) => state = value;
 }
 
 class _IntNotifier extends Notifier<int> {
@@ -21,6 +23,8 @@ class _IntNotifier extends Notifier<int> {
   _IntNotifier(this._initial);
   @override
   int build() => _initial;
+
+  void setValue(int value) => state = value;
 }
 
 class _BoolNotifier extends Notifier<bool> {
@@ -28,6 +32,8 @@ class _BoolNotifier extends Notifier<bool> {
   _BoolNotifier(this._initial);
   @override
   bool build() => _initial;
+
+  void setValue(bool value) => state = value;
 }
 
 class _StringNotifier extends Notifier<String> {
@@ -35,21 +41,29 @@ class _StringNotifier extends Notifier<String> {
   _StringNotifier(this._initial);
   @override
   String build() => _initial;
+
+  void setValue(String value) => state = value;
 }
 
 class _CharactersNotifier extends Notifier<List<CharacterInfo>> {
   @override
   List<CharacterInfo> build() => [];
+
+  void setValue(List<CharacterInfo> value) => state = value;
 }
 
 class _ModsNotifier extends Notifier<List<ModInfo>> {
   @override
   List<ModInfo> build() => [];
+
+  void setValue(List<ModInfo> value) => state = value;
 }
 
 class _LocaleNotifier extends Notifier<Locale> {
   @override
   Locale build() => const Locale('en');
+
+  void setValue(Locale value) => state = value;
 }
 
 enum ActivationMode { single, multi }
@@ -57,6 +71,8 @@ enum ActivationMode { single, multi }
 class _ActivationModeNotifier extends Notifier<ActivationMode> {
   @override
   ActivationMode build() => ActivationMode.single;
+
+  void setValue(ActivationMode value) => state = value;
 }
 
 // Zoom scale provider
@@ -159,6 +175,8 @@ final autoF10ReloadProvider = NotifierProvider<_BoolNotifier, bool>(
 class _StringListNotifier extends Notifier<List<String>> {
   @override
   List<String> build() => [];
+
+  void setValue(List<String> value) => state = value;
 }
 
 final allModsDisabledProvider = NotifierProvider<_BoolNotifier, bool>(
@@ -174,6 +192,8 @@ enum GameType { zzz, wutheringWaves }
 class _GameTypeNotifier extends Notifier<GameType> {
   @override
   GameType build() => GameType.zzz;
+
+  void setValue(GameType value) => state = value;
 }
 
 final selectedGameProvider = NotifierProvider<_GameTypeNotifier, GameType>(

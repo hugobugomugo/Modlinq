@@ -330,7 +330,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
                       child: InkWell(
                         onTap: () {
                           setState(() => _selectedLanguage = entry.key);
-                          ref.read(localeProvider.notifier).state = Locale(entry.key);
+                          ref.read(localeProvider.notifier).setValue(Locale(entry.key));
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: AnimatedContainer(

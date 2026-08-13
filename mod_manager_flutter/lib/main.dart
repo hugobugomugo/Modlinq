@@ -338,8 +338,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                               onPressed: () {
                                 ref
                                         .read(sidebarCollapsedProvider.notifier)
-                                        .state =
-                                    !isSidebarCollapsed;
+                                        .setValue(!isSidebarCollapsed);
                               },
                               tooltip: isSidebarCollapsed
                                   ? loc.t('navigation.expand')
@@ -445,11 +444,9 @@ class _MainScreenState extends ConsumerState<MainScreen>
                                   icon: Icons.dashboard_rounded,
                                   label: loc.t('navigation.mods'),
                                   isActive: currentTab == 0,
-                                  onTap: () =>
-                                      ref
-                                              .read(tabIndexProvider.notifier)
-                                              .state =
-                                          0,
+                                  onTap: () => ref
+                                      .read(tabIndexProvider.notifier)
+                                      .setValue(0),
                                 ),
                                 const SizedBox(height: 8),
                                 _buildNavItem(
@@ -457,11 +454,9 @@ class _MainScreenState extends ConsumerState<MainScreen>
                                   icon: Icons.store_mall_directory_rounded,
                                   label: loc.t('navigation.marketplace'),
                                   isActive: currentTab == 1,
-                                  onTap: () =>
-                                      ref
-                                              .read(tabIndexProvider.notifier)
-                                              .state =
-                                          1,
+                                  onTap: () => ref
+                                      .read(tabIndexProvider.notifier)
+                                      .setValue(1),
                                 ),
                                 const SizedBox(height: 8),
                                 _buildNavItem(
@@ -469,11 +464,9 @@ class _MainScreenState extends ConsumerState<MainScreen>
                                   icon: Icons.settings_rounded,
                                   label: loc.t('navigation.settings'),
                                   isActive: currentTab == 2,
-                                  onTap: () =>
-                                      ref
-                                              .read(tabIndexProvider.notifier)
-                                              .state =
-                                          2,
+                                  onTap: () => ref
+                                      .read(tabIndexProvider.notifier)
+                                      .setValue(2),
                                 ),
                               ],
                             ),
@@ -735,7 +728,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
     final isActive = selected == game;
     return Expanded(
       child: GestureDetector(
-        onTap: () => ref.read(selectedGameProvider.notifier).state = game,
+        onTap: () => ref.read(selectedGameProvider.notifier).setValue(game),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.all(3),
@@ -773,7 +766,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
   }) {
     final isActive = selected == game;
     return GestureDetector(
-      onTap: () => ref.read(selectedGameProvider.notifier).state = game,
+      onTap: () => ref.read(selectedGameProvider.notifier).setValue(game),
       child: Tooltip(
         message: game == GameType.zzz ? 'Zenless Zone Zero' : 'Wuthering Waves',
         child: AnimatedContainer(

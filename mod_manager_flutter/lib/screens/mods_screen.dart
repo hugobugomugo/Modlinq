@@ -252,18 +252,18 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
       if (_charactersActuallyChanged(characters)) {
         _lastCharactersState = List.from(characters);
-        ref.read(charactersProvider.notifier).state = characters;
+        ref.read(charactersProvider.notifier).setValue(characters);
       }
 
       if (previousSelectedId != null && characters.isNotEmpty) {
         final newIndex = characters.indexWhere(
           (char) => char.id == previousSelectedId,
         );
-        ref.read(selectedCharacterIndexProvider.notifier).state = newIndex != -1
+        ref.read(selectedCharacterIndexProvider.notifier).setValue(newIndex != -1
             ? newIndex
-            : 0;
+            : 0);
       } else if (characters.isNotEmpty) {
-        ref.read(selectedCharacterIndexProvider.notifier).state = 0;
+        ref.read(selectedCharacterIndexProvider.notifier).setValue(0);
       }
 
       if (showLoading) {
@@ -322,7 +322,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           return char.copyWith(skins: updatedSkins);
         }).toList();
 
-        ref.read(charactersProvider.notifier).state = updatedCharacters;
+        ref.read(charactersProvider.notifier).setValue(updatedCharacters);
         _lastCharactersState = List.from(updatedCharacters);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -488,7 +488,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         orElse: () => CharacterInfo(id: 'all', name: '', iconPath: null, skins: []),
       );
       final activeIds = allChar.skins.where((m) => m.isActive).map((m) => m.id).toList();
-      ref.read(savedActiveModsProvider.notifier).state = activeIds;
+      ref.read(savedActiveModsProvider.notifier).setValue(activeIds);
 
       setState(() => _isOperationInProgress = true);
       for (final id in activeIds) {
@@ -496,7 +496,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       }
       setState(() => _isOperationInProgress = false);
 
-      ref.read(allModsDisabledProvider.notifier).state = true;
+      ref.read(allModsDisabledProvider.notifier).setValue(true);
       await loadMods(showLoading: false);
     } else {
       // Re-enable whatever was active before
@@ -507,8 +507,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       }
       setState(() => _isOperationInProgress = false);
 
-      ref.read(allModsDisabledProvider.notifier).state = false;
-      ref.read(savedActiveModsProvider.notifier).state = [];
+      ref.read(allModsDisabledProvider.notifier).setValue(false);
+      ref.read(savedActiveModsProvider.notifier).setValue([]);
       await loadMods(showLoading: false);
     }
   }
@@ -561,7 +561,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           : loc.t('mods.tooltips.auto_f10_off'),
       child: GestureDetector(
         onTap: () {
-          ref.read(autoF10ReloadProvider.notifier).state = !autoF10Enabled;
+          ref.read(autoF10ReloadProvider.notifier).setValue(!autoF10Enabled);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -754,7 +754,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             return char.copyWith(skins: updatedSkins);
           }).toList();
 
-          ref.read(charactersProvider.notifier).state = updatedCharacters;
+          ref.read(charactersProvider.notifier).setValue(updatedCharacters);
           _lastCharactersState = List.from(updatedCharacters);
 
           setState(() {});
@@ -867,7 +867,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
           skins: char.skins.where((s) => s.id != mod.id).toList(),
         );
       }).toList();
-      ref.read(charactersProvider.notifier).state = updatedCharacters;
+      ref.read(charactersProvider.notifier).setValue(updatedCharacters);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${mod.name}" deleted')),
@@ -1578,8 +1578,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                           _rebuildDebounce?.cancel();
                           _characterSelectionDebounce?.cancel();
                           _isOperationInProgress = false;
-                          ref.read(activationModeProvider.notifier).state =
-                              newMode;
+                          ref.read(activationModeProvider.notifier).setValue(newMode);
                         },
                       ),
                     ],
@@ -1590,8 +1589,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     characters: characters,
                     selectedIndex: selectedIndex,
                     onCharacterSelected: (int index) {
-                      ref.read(selectedCharacterIndexProvider.notifier).state =
-                          index;
+                      ref.read(selectedCharacterIndexProvider.notifier).setValue(index);
                     },
                     onCharacterTagSaved: _saveTag,
                     modCharacterTags: modCharacterTags,

@@ -319,7 +319,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                             trailing: Switch(
                               value: isDarkMode,
                               onChanged: (value) {
-                                ref.read(isDarkModeProvider.notifier).state = value;
+                                ref.read(isDarkModeProvider.notifier).setValue(value);
                               },
                               activeThumbColor: const Color(0xFF0EA5E9),
                             ),
@@ -434,7 +434,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
       _isUpdatingLanguage = true;
     });
 
-    ref.read(localeProvider.notifier).state = Locale(languageCode);
+    ref.read(localeProvider.notifier).setValue(Locale(languageCode));
 
     try {
       await ApiService.setLanguage(languageCode);
@@ -994,7 +994,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
           Switch(
             value: autoF10Enabled,
             onChanged: (value) {
-              ref.read(autoF10ReloadProvider.notifier).state = value;
+              ref.read(autoF10ReloadProvider.notifier).setValue(value);
             },
             activeThumbColor: const Color(0xFF10B981),
             inactiveThumbColor: const Color(0xFFEF4444),

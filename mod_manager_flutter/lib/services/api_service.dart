@@ -21,7 +21,7 @@ class ApiService {
     if (container != null) {
       _container = container;
       final localeCode = _configService?.language ?? 'en';
-      _container!.read(localeProvider.notifier).state = Locale(localeCode);
+      _container!.read(localeProvider.notifier).setValue(Locale(localeCode));
     }
 
     _modManager ??= ModManagerService(_configService!, _container!);
@@ -100,7 +100,7 @@ class ApiService {
     await initialize();
     final gameStr = game == GameType.wutheringWaves ? 'ww' : 'zzz';
     await _configService!.setCurrentGame(gameStr);
-    _container?.read(selectedGameProvider.notifier).state = game;
+    _container?.read(selectedGameProvider.notifier).setValue(game);
   }
 
   static Future<Map<String, String>> getConfig() async {
@@ -122,7 +122,7 @@ class ApiService {
   static Future<void> setLanguage(String languageCode) async {
     await initialize();
     await _configService!.setLanguage(languageCode);
-    _container?.read(localeProvider.notifier).state = Locale(languageCode);
+    _container?.read(localeProvider.notifier).setValue(Locale(languageCode));
   }
 
   static Future<String> updateConfig({

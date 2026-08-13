@@ -13,6 +13,8 @@ class ConfigService {
   static const String _keyCurrentGame = 'current_game';
   static const String _keyNteGamePath = 'game_path_nte';
   static const String _keyNteLibraryPath = 'library_path_nte';
+  static const String _keyNteModCategories = 'mod_categories_nte';
+  static const String _keyNteEnabledMods = 'enabled_mods_nte';
   static const String _keyActiveMods = 'active_mods';
   static const String _keyWwActiveMods = 'active_mods_ww';
   static const String _keyTheme = 'theme';
@@ -70,6 +72,43 @@ class ConfigService {
   Future<bool> setNteLibraryPath(String path) async {
     try {
       return await _prefs.setString(_keyNteLibraryPath, path);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Category assigned to each NTE mod, keyed by mod name.
+  Map<String, String> get nteModCategories {
+    final json = _prefs.getString(_keyNteModCategories);
+    if (json == null || json.isEmpty) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(json) as Map);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<bool> setNteModCategory(String modName, String? category) async {
+    try {
+      final categories = nteModCategories;
+      if (category == null || category.isEmpty) {
+        categories.remove(modName);
+      } else {
+        categories[modName] = category;
+      }
+      return await _prefs.setString(_keyNteModCategories, jsonEncode(categories));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Mods the user has switched on. Kept so a mod the game had locked can be
+  /// retried on the next apply.
+  List<String> get nteEnabledMods => _prefs.getStringList(_keyNteEnabledMods) ?? [];
+
+  Future<bool> setNteEnabledMods(List<String> modNames) async {
+    try {
+      return await _prefs.setStringList(_keyNteEnabledMods, modNames);
     } catch (e) {
       return false;
     }

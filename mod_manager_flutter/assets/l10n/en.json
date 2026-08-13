@@ -286,18 +286,26 @@
   },
   "nte": {
     "setup": {
-      "detected": "Game found",
       "not_found": "No Neverness to Everness install was found automatically. Select your game folder manually.",
       "invalid_folder": "That folder is not a valid Neverness to Everness install",
-      "path": "Path",
-      "edition": "Edition",
-      "mods_folder": "Mods folder",
-      "will_be_created": "will be created",
       "change_folder": "Change folder",
       "select_folder": "Select folder",
-      "detect_again": "Detect again",
-      "mods_coming_soon": "Mod management for NTE is not available yet. Detection only.",
-      "compat_prefix": "Wine / Proton prefix"
+      "detect_again": "Detect again"
+    },
+    "mods": {
+      "search": "Search mods…",
+      "count": "{enabled} of {total} enabled",
+      "import_folder": "Import folder",
+      "import_zip": "Import zip",
+      "imported": "Imported {count} mod(s)",
+      "empty": "No mods yet. Drop a folder or zip here, or use the import buttons.",
+      "no_matches": "No mods match your search",
+      "not_installable": "no .pak or .asi",
+      "pending": "pending — close the game",
+      "locked": "The game is holding these files open. Close it and hit refresh.",
+      "delete_title": "Delete mod",
+      "delete_message": "Remove \"{mod}\" from your library? Files installed in the game are removed too.",
+      "delete_confirm": "Delete"
     }
   }
 }

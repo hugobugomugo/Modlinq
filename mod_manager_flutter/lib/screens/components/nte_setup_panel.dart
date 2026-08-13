@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,12 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/nte_game_detection.dart';
+import 'nte_mods_list.dart';
 import '../../utils/state_providers.dart';
 
-/// Setup and status view for Neverness to Everness.
+/// Entry point for the Neverness to Everness tab.
 ///
-/// Slice 1 of the NTE integration: locates the install and stores its path.
-/// Mod management for NTE is not wired up yet.
+/// Locates the install, then hands over to the mod library. Until a valid
+/// game folder is known it shows detection and a manual folder picker.
 class NteSetupPanel extends ConsumerStatefulWidget {
   const NteSetupPanel({super.key});
 
@@ -93,6 +92,17 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
     final isDarkMode = ref.watch(isDarkModeProvider);
     final install = _install;
 
+    // Once the game is located, the panel gets out of the way and the library
+    // takes over; the install details stay reachable from the header.
+    if (install != null && install.valid) {
+      return Column(
+        children: [
+          _buildInstallHeader(install, isDarkMode, loc),
+          Expanded(child: NteModsList(gamePath: install.path)),
+        ],
+      );
+    }
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -110,16 +120,8 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
               const SizedBox(height: 24),
               if (_isDetecting)
                 const Center(child: CircularProgressIndicator())
-              else if (install != null && install.valid)
-                _buildDetected(install, isDarkMode, loc)
               else
                 _buildNotFound(loc),
-              const SizedBox(height: 24),
-              Text(
-                loc.t('nte.setup.mods_coming_soon'),
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
             ],
           ),
         ),
@@ -127,46 +129,40 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
     );
   }
 
-  Widget _buildDetected(NteInstall install, bool isDarkMode, AppLocalizations loc) {
+  /// Compact status bar shown above the mod library.
+  Widget _buildInstallHeader(NteInstall install, bool isDarkMode, AppLocalizations loc) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isDarkMode
-            ? Colors.white.withValues(alpha: 0.05)
+            ? Colors.white.withValues(alpha: 0.04)
             : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
-              const SizedBox(width: 8),
-              Text(
-                loc.t('nte.setup.detected'),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+          const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          const SizedBox(width: 8),
+          Text(
+            '${GameType.nte.displayName} · ${install.edition.key.toUpperCase()}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Tooltip(
+              message: install.path,
+              child: Text(
+                install.path,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          _buildRow(loc.t('nte.setup.path'), install.path),
-          _buildRow(loc.t('nte.setup.edition'), install.edition.key.toUpperCase()),
-          if (install.compatPrefix != null)
-            _buildRow(loc.t('nte.setup.compat_prefix'), install.compatPrefix!),
-          _buildRow(
-            loc.t('nte.setup.mods_folder'),
-            Directory(install.paksModsPath).existsSync()
-                ? install.paksModsPath
-                : '${install.paksModsPath} (${loc.t('nte.setup.will_be_created')})',
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _pickFolder,
-              icon: const Icon(Icons.folder_open, size: 16),
-              label: Text(loc.t('nte.setup.change_folder')),
+          TextButton.icon(
+            onPressed: _pickFolder,
+            icon: const Icon(Icons.folder_open, size: 14),
+            label: Text(
+              loc.t('nte.setup.change_folder'),
+              style: const TextStyle(fontSize: 12),
             ),
           ),
         ],
@@ -202,30 +198,6 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

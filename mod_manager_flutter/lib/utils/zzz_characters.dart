@@ -57,9 +57,11 @@ const List<CharacterData> zzzCharactersData = [
   CharacterData(id: 'rina', displayName: 'Rina', assetName: 'rina'),
   CharacterData(id: 'seed', displayName: 'Seed', assetName: 'seed'),
   CharacterData(id: 'seth', displayName: 'Seth', assetName: 'seth'),
+  CharacterData(id: 'sigrid', displayName: 'Sigrid', assetName: 'sigrid'),
   CharacterData(id: 'solder0anby', displayName: 'Soldier 0 Anby', assetName: 'solder0anby'),
   CharacterData(id: 'solder11', displayName: 'Soldier 11', assetName: 'solder11'),
   CharacterData(id: 'soukaku', displayName: 'Soukaku', assetName: 'soukaku'),
+  CharacterData(id: 'starlightbilly', displayName: 'Starlight Billy', assetName: 'starlightbilly'),
   CharacterData(id: 'sunna', displayName: 'Sunna', assetName: 'sunna'),
   CharacterData(id: 'trigger', displayName: 'Trigger', assetName: 'trigger'),
   CharacterData(id: 'velina', displayName: 'Velina', assetName: 'velina'),
@@ -80,8 +82,8 @@ const List<String> zzzCharacters = [
   'alice', 'anby', 'anton', 'aria', 'astra', 'banyue', 'belle', 'ben', 'billy', 'burnice', 'caesar',
   'cissia', 'corin', 'dialyn', 'ellen', 'evelyn', 'grace', 'harumasa', 'hugo', 'jane', 'jufufu',
   'koleda', 'lighter', 'lucia', 'lucy', 'lycaon', 'manato', 'miyabi', 'nangongyu', 'nekomata', 'nicole',
-  'norma', 'orphie', 'panyinhu', 'piper', 'promeia', 'pulchra', 'pyrois', 'quinqiy', 'remielle', 'rina', 'seed', 'seth',
-  'solder0anby', 'solder11', 'soukaku', 'sunna', 'trigger', 'velina', 'vivian', 'wise',
+  'norma', 'orphie', 'panyinhu', 'piper', 'promeia', 'pulchra', 'pyrois', 'quinqiy', 'remielle', 'rina', 'seed', 'seth', 'sigrid',
+  'solder0anby', 'solder11', 'soukaku', 'starlightbilly', 'sunna', 'trigger', 'velina', 'vivian', 'wise',
   'yanagi', 'yeshunguang', 'yidhari', 'yixuan', 'yuzuha', 'zhao', 'zhuyuan',
 ];
 

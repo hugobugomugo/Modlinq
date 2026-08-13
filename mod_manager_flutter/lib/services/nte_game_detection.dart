@@ -28,21 +28,21 @@ class NteInstall {
   final String path;
   final NteEdition edition;
 
-  /// Proton prefix this install runs under, when detected on Linux.
-  final String? protonPrefix;
+  /// Wine or Proton prefix this install runs under, when detected on Linux.
+  final String? compatPrefix;
 
   const NteInstall({
     required this.valid,
     required this.path,
     required this.edition,
-    this.protonPrefix,
+    this.compatPrefix,
   });
 
   const NteInstall.notFound()
     : valid = false,
       path = '',
       edition = NteEdition.unknown,
-      protonPrefix = null;
+      compatPrefix = null;
 
   /// Directory that `.pak` mods are copied into.
   String get paksModsPath =>
@@ -52,11 +52,11 @@ class NteInstall {
   String get binariesPath =>
       p.join(path, 'Client', 'WindowsNoEditor', 'HT', 'Binaries', 'Win64');
 
-  NteInstall copyWith({String? protonPrefix}) => NteInstall(
+  NteInstall copyWith({String? compatPrefix}) => NteInstall(
     valid: valid,
     path: path,
     edition: edition,
-    protonPrefix: protonPrefix ?? this.protonPrefix,
+    compatPrefix: compatPrefix ?? this.compatPrefix,
   );
 }
 
@@ -141,20 +141,96 @@ class NteGameDetection {
       return validate(windowsDefaultPath);
     }
 
-    for (final common in steamLibraryCommons()) {
-      final entries = Directory(common).existsSync()
-          ? Directory(common).listSync().whereType<Directory>()
-          : <Directory>[];
-
-      for (final entry in entries) {
-        final check = validate(entry.path);
-        if (check.valid) {
-          return check.copyWith(protonPrefix: findProtonPrefixFor(entry.path));
-        }
+    for (final candidate in linuxCandidatePaths()) {
+      final check = validate(candidate);
+      if (check.valid) {
+        return check.copyWith(compatPrefix: findCompatPrefixFor(candidate));
       }
     }
 
     return const NteInstall.notFound();
+  }
+
+  /// Folders that may contain a game install, in search order.
+  ///
+  /// Covers Steam libraries plus the launcher-agnostic Wine layouts used by
+  /// Lutris, Heroic, Bottles and manual prefixes, where the game lives outside
+  /// any Steam library.
+  static List<String> linuxCandidatePaths() {
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void add(String dir) {
+      if (seen.add(dir)) candidates.add(dir);
+    }
+
+    for (final common in steamLibraryCommons()) {
+      _subdirectoriesOf(common).forEach(add);
+    }
+
+    // Games added to Steam as non-Steam shortcuts install into their Proton
+    // prefix rather than into a Steam library.
+    for (final pfx in steamProtonPrefixes()) {
+      _windowsInstallDirsIn(pfx).forEach(add);
+    }
+
+    for (final root in _winePrefixRoots()) {
+      for (final prefix in _subdirectoriesOf(root)) {
+        // The game may sit directly in the folder, as launcher installers do.
+        add(prefix);
+        // Or inside the prefix's virtual C: drive.
+        _windowsInstallDirsIn(prefix).forEach(add);
+      }
+    }
+
+    final home = Platform.environment['HOME'];
+    if (home != null && home.isNotEmpty) {
+      _windowsInstallDirsIn(p.join(home, '.wine')).forEach(add);
+    }
+
+    return candidates;
+  }
+
+  /// Folders whose children are Wine prefixes or game directories.
+  static List<String> _winePrefixRoots() {
+    final home = Platform.environment['HOME'];
+    if (home == null || home.isEmpty) return const [];
+
+    return [
+      p.join(home, 'Games'),
+      p.join(home, 'Games', 'Heroic', 'Prefixes'),
+      p.join(home, '.local', 'share', 'wineprefixes'),
+      p.join(home, '.var', 'app', 'com.usebottles.bottles', 'data', 'bottles', 'bottles'),
+    ];
+  }
+
+  /// Install directories inside a Wine prefix's virtual C: drive.
+  static List<String> _windowsInstallDirsIn(String prefix) {
+    final driveC = p.join(prefix, 'drive_c');
+    if (!Directory(driveC).existsSync()) return const [];
+
+    return [
+      ..._subdirectoriesOf(p.join(driveC, 'Program Files')),
+      ..._subdirectoriesOf(p.join(driveC, 'Program Files (x86)')),
+      ..._subdirectoriesOf(driveC),
+    ];
+  }
+
+  /// Subdirectories of [dir], following symlinks so that linked game folders
+  /// (a common way to expose a game living inside a prefix) are included.
+  static List<String> _subdirectoriesOf(String dir) {
+    final directory = Directory(dir);
+    if (!directory.existsSync()) return const [];
+
+    try {
+      return directory
+          .listSync()
+          .whereType<Directory>()
+          .map((d) => d.path)
+          .toList();
+    } catch (_) {
+      return const []; // unreadable directory
+    }
   }
 
   /// Extracts the value from a VDF line shaped like `"key"\t\t"value"`.
@@ -231,9 +307,15 @@ class NteGameDetection {
     return prefixes;
   }
 
-  /// Resolves the Proton prefix belonging to the install at [gamePath] by
-  /// matching its Steam app id, which is shared by `common/` and `compatdata/`.
-  static String? findProtonPrefixFor(String gamePath) {
+  /// Resolves the Wine or Proton prefix an install runs under.
+  ///
+  /// A path inside a `drive_c` belongs to the prefix containing it. Otherwise
+  /// the install is assumed to be a Steam game, whose Proton prefix is keyed by
+  /// the same app id as its `steamapps/common` folder.
+  static String? findCompatPrefixFor(String gamePath) {
+    final winePrefix = _winePrefixContaining(gamePath);
+    if (winePrefix != null) return winePrefix;
+
     // steamapps/common/<GameDir> -> steamapps/
     final steamapps = p.dirname(p.dirname(gamePath));
     final installDir = p.basename(gamePath);
@@ -243,6 +325,19 @@ class NteGameDetection {
 
     final pfx = p.join(steamapps, 'compatdata', appId, 'pfx');
     return Directory(pfx).existsSync() ? pfx : null;
+  }
+
+  /// Walks up from [gamePath] to the prefix root that owns its `drive_c`.
+  static String? _winePrefixContaining(String gamePath) {
+    var current = p.normalize(gamePath);
+
+    while (true) {
+      final parent = p.dirname(current);
+      if (parent == current) return null; // reached the filesystem root
+
+      if (p.basename(current) == 'drive_c') return parent;
+      current = parent;
+    }
   }
 
   /// Reads `appmanifest_*.acf` files to find the app id whose `installdir`

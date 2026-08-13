@@ -130,6 +130,25 @@ void main() {
     });
   });
 
+  group('findCompatPrefixFor', () {
+    test('returns the prefix root for a path inside drive_c', () {
+      final game = p.join(tmp.path, 'pfx', 'drive_c', 'Program Files', 'Neverness To Everness');
+      expect(
+        NteGameDetection.findCompatPrefixFor(game),
+        p.join(tmp.path, 'pfx'),
+      );
+    });
+
+    test('handles a game sitting directly in drive_c', () {
+      final game = p.join(tmp.path, 'pfx', 'drive_c', 'NTE');
+      expect(NteGameDetection.findCompatPrefixFor(game), p.join(tmp.path, 'pfx'));
+    });
+
+    test('returns null for a path with no prefix and no steam manifest', () {
+      expect(NteGameDetection.findCompatPrefixFor(p.join(tmp.path, 'games', 'nte')), isNull);
+    });
+  });
+
   group('findSteamAppId', () {
     test('matches installdir case-insensitively and returns the appid', () {
       final steamapps = Directory(p.join(tmp.path, 'steamapps'))..createSync();

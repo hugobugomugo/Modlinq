@@ -48,7 +48,7 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
   Future<void> _detect() async {
     setState(() => _isDetecting = true);
 
-    // Detection walks Steam libraries, so keep it off the UI thread.
+    // Detection walks Steam libraries and Wine prefixes off the UI thread.
     final result = await Future(() => NteGameDetection.autoDetect());
 
     if (result.valid) await _persist(result.path);
@@ -152,8 +152,8 @@ class _NteSetupPanelState extends ConsumerState<NteSetupPanel> {
           const SizedBox(height: 12),
           _buildRow(loc.t('nte.setup.path'), install.path),
           _buildRow(loc.t('nte.setup.edition'), install.edition.key.toUpperCase()),
-          if (install.protonPrefix != null)
-            _buildRow(loc.t('nte.setup.proton_prefix'), install.protonPrefix!),
+          if (install.compatPrefix != null)
+            _buildRow(loc.t('nte.setup.compat_prefix'), install.compatPrefix!),
           _buildRow(
             loc.t('nte.setup.mods_folder'),
             Directory(install.paksModsPath).existsSync()

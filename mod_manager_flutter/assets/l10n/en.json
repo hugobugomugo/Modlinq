@@ -291,13 +291,13 @@
       "invalid_folder": "That folder is not a valid Neverness to Everness install",
       "path": "Path",
       "edition": "Edition",
-      "proton_prefix": "Proton prefix",
       "mods_folder": "Mods folder",
       "will_be_created": "will be created",
       "change_folder": "Change folder",
       "select_folder": "Select folder",
       "detect_again": "Detect again",
-      "mods_coming_soon": "Mod management for NTE is not available yet. Detection only."
+      "mods_coming_soon": "Mod management for NTE is not available yet. Detection only.",
+      "compat_prefix": "Wine / Proton prefix"
     }
   }
 }

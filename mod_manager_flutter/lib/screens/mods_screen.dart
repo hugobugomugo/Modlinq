@@ -20,6 +20,7 @@ import '../utils/ww_characters.dart';
 import '../utils/path_helper.dart';
 import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
+import 'components/nte_setup_panel.dart';
 import 'components/character_cards_list_widget.dart';
 import 'components/mod_card_widget.dart';
 
@@ -120,6 +121,20 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   Future<void> loadMods({bool showLoading = true}) async {
     // Prevent multiple simultaneous load operations
     if (_isLoadingMods) return;
+
+    // NTE uses the pak backend and its own setup panel, not the migoto paths.
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      ref.read(charactersProvider.notifier).setValue([]);
+      ref.read(modsProvider.notifier).setValue([]);
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          errorMessage = null;
+        });
+      }
+      return;
+    }
+
     _isLoadingMods = true;
 
     setState(() {
@@ -135,8 +150,13 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final favoriteSet = configService.favoriteMods.toSet();
       final currentGame = ref.read(selectedGameProvider);
       final isWW = currentGame == GameType.wutheringWaves;
-      final gameCharacters = isWW ? wwCharacters : zzzCharacters;
-      final gameStr = isWW ? 'ww' : 'zzz';
+      // NTE groups mods into user-defined categories, so it has no roster.
+      final gameCharacters = switch (currentGame) {
+        GameType.zzz => zzzCharacters,
+        GameType.wutheringWaves => wwCharacters,
+        GameType.nte => const <String>[],
+      };
+      final gameStr = currentGame.key;
 
       final Map<String, List<ModInfo>> characterMods = {};
       final List<ModInfo> allMods = [];
@@ -1405,6 +1425,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         loadMods();
       }
     });
+
+    if (ref.watch(selectedGameProvider) == GameType.nte) {
+      return const NteSetupPanel();
+    }
 
     if (isLoading) {
       return Center(

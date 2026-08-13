@@ -98,8 +98,7 @@ class ApiService {
 
   static Future<void> setCurrentGame(GameType game) async {
     await initialize();
-    final gameStr = game == GameType.wutheringWaves ? 'ww' : 'zzz';
-    await _configService!.setCurrentGame(gameStr);
+    await _configService!.setCurrentGame(game.key);
     _container?.read(selectedGameProvider.notifier).setValue(game);
   }
 

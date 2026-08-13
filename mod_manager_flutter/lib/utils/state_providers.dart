@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/character_info.dart';
+import '../models/game_type.dart';
 import '../services/api_service.dart';
 import '../services/mod_manager_service.dart';
+
+export '../models/game_type.dart';
 
 // API Service Provider
 final modManagerServiceProvider = FutureProvider<ModManagerService>((ref) async {
@@ -186,8 +189,6 @@ final allModsDisabledProvider = NotifierProvider<_BoolNotifier, bool>(
 final savedActiveModsProvider = NotifierProvider<_StringListNotifier, List<String>>(
   _StringListNotifier.new,
 );
-
-enum GameType { zzz, wutheringWaves }
 
 class _GameTypeNotifier extends Notifier<GameType> {
   @override

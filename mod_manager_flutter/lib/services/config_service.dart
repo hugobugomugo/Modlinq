@@ -11,6 +11,8 @@ class ConfigService {
   static const String _keyWwModsPath = 'mods_path_ww';
   static const String _keyWwSaveModsPath = 'save_mods_path_ww';
   static const String _keyCurrentGame = 'current_game';
+  static const String _keyNteGamePath = 'game_path_nte';
+  static const String _keyNteLibraryPath = 'library_path_nte';
   static const String _keyActiveMods = 'active_mods';
   static const String _keyWwActiveMods = 'active_mods_ww';
   static const String _keyTheme = 'theme';
@@ -49,6 +51,29 @@ class ConfigService {
 
   String get currentGame => _prefs.getString(_keyCurrentGame) ?? 'zzz';
   bool get isWutheringWaves => currentGame == 'ww';
+  bool get isNte => currentGame == 'nte';
+
+  /// NTE install folder, detected or picked by the user.
+  String? get nteGamePath => _prefs.getString(_keyNteGamePath);
+
+  /// App-managed folder holding imported NTE mods.
+  String? get nteLibraryPath => _prefs.getString(_keyNteLibraryPath);
+
+  Future<bool> setNteGamePath(String path) async {
+    try {
+      return await _prefs.setString(_keyNteGamePath, path);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> setNteLibraryPath(String path) async {
+    try {
+      return await _prefs.setString(_keyNteLibraryPath, path);
+    } catch (e) {
+      return false;
+    }
+  }
 
   String? get modsPath => isWutheringWaves
       ? _prefs.getString(_keyWwModsPath)

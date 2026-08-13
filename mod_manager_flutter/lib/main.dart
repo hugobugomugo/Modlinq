@@ -392,7 +392,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                               colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)],
                             ).createShader(bounds),
                             child: Text(
-                              selectedGame == GameType.wutheringWaves ? 'WW' : 'ZZZ',
+                              selectedGame.shortLabel,
                               style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
@@ -692,18 +692,13 @@ class _MainScreenState extends ConsumerState<MainScreen>
       ),
       child: Row(
         children: [
-          _buildGameButton(
-            label: 'ZZZ',
-            game: GameType.zzz,
-            selected: selected,
-            isDarkMode: isDarkMode,
-          ),
-          _buildGameButton(
-            label: 'WW',
-            game: GameType.wutheringWaves,
-            selected: selected,
-            isDarkMode: isDarkMode,
-          ),
+          for (final game in GameType.values)
+            _buildGameButton(
+              label: game.shortLabel,
+              game: game,
+              selected: selected,
+              isDarkMode: isDarkMode,
+            ),
         ],
       ),
     );
@@ -712,9 +707,14 @@ class _MainScreenState extends ConsumerState<MainScreen>
   Widget _buildGameSwitcherCollapsed(BuildContext context, GameType selected) {
     return Column(
       children: [
-        _buildGameIconButton(game: GameType.zzz, selected: selected, label: 'ZZZ'),
-        const SizedBox(height: 4),
-        _buildGameIconButton(game: GameType.wutheringWaves, selected: selected, label: 'WW'),
+        for (final game in GameType.values) ...[
+          if (game != GameType.values.first) const SizedBox(height: 4),
+          _buildGameIconButton(
+            game: game,
+            selected: selected,
+            label: game.shortLabel,
+          ),
+        ],
       ],
     );
   }
@@ -768,7 +768,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
     return GestureDetector(
       onTap: () => ref.read(selectedGameProvider.notifier).setValue(game),
       child: Tooltip(
-        message: game == GameType.zzz ? 'Zenless Zone Zero' : 'Wuthering Waves',
+        message: game.displayName,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 48,

@@ -281,5 +281,21 @@
       "back": "Назад",
       "finish": "Завершити"
     }
+  },
+  "nte": {
+    "setup": {
+      "detected": "Гру знайдено",
+      "not_found": "Не вдалося автоматично знайти встановлену Neverness to Everness. Виберіть теку гри вручну.",
+      "invalid_folder": "Ця тека не є коректним встановленням Neverness to Everness",
+      "path": "Шлях",
+      "edition": "Видання",
+      "proton_prefix": "Префікс Proton",
+      "mods_folder": "Тека модів",
+      "will_be_created": "буде створено",
+      "change_folder": "Змінити теку",
+      "select_folder": "Вибрати теку",
+      "detect_again": "Шукати знову",
+      "mods_coming_soon": "Керування модами для NTE ще недоступне. Лише виявлення."
+    }
   }
 }

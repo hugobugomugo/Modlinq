@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:cross_file/cross_file.dart';
+import 'package:file_picker/file_picker.dart';
 import '../core/constants.dart';
 import '../models/character_info.dart';
 import '../models/keybind_info.dart';
@@ -806,6 +807,33 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
   }
 
+  /// Manual import, for when dragging a folder onto the window is awkward.
+  Widget _buildAddModsButton() {
+    return Tooltip(
+      message: loc.t('mods.add.tooltip'),
+      child: Builder(
+        builder: (buttonContext) => ElevatedButton.icon(
+          onPressed: () {
+            // Anchor the menu under the button that opened it.
+            final box = buttonContext.findRenderObject() as RenderBox?;
+            final origin = box == null
+                ? Offset.zero
+                : box.localToGlobal(Offset(0, box.size.height));
+            _showAddModsMenu(origin);
+          },
+          icon: const Icon(Icons.add, size: 18),
+          label: Text(loc.t('mods.add.button')),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0EA5E9),
+            foregroundColor: Colors.white,
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRefreshModsButton() {
     final isBusy = isLoading || _isLoadingMods;
 
@@ -954,6 +982,81 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         );
       }
     }
+  }
+
+  /// Archive types the current game can unpack.
+  ///
+  /// NTE unpacks zips itself; the other games go through ArchiveService, which
+  /// also handles rar and 7z when 7-Zip is installed.
+  List<String> get _supportedArchiveExtensions =>
+      ref.read(selectedGameProvider) == GameType.nte
+          ? const ['zip']
+          : const ['zip', 'rar', '7z'];
+
+  /// Lets the user pick a mod folder, then imports it.
+  Future<void> _pickModFolder() async {
+    final picked = await FilePicker.getDirectoryPath();
+    if (picked == null) return;
+
+    await _importModsFromFolders([XFile(picked)]);
+  }
+
+  /// Lets the user pick one or more mod archives, then imports them.
+  Future<void> _pickModArchives() async {
+    final result = await FilePicker.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: _supportedArchiveExtensions,
+    );
+
+    final paths = result?.files.map((f) => f.path).whereType<String>().toList();
+    if (paths == null || paths.isEmpty) return;
+
+    await _importModsFromFolders(paths.map(XFile.new).toList());
+  }
+
+  /// Offers the two ways of adding mods by hand, next to drag and drop.
+  Future<void> _showAddModsMenu(Offset position) async {
+    final loc = context.loc;
+
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      items: [
+        PopupMenuItem(
+          value: 'folder',
+          child: Row(
+            children: [
+              const Icon(Icons.folder_open, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.t('mods.add.folder')),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'archive',
+          child: Row(
+            children: [
+              const Icon(Icons.archive_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                loc.t(
+                  'mods.add.archive',
+                  params: {
+                    'formats': _supportedArchiveExtensions
+                        .map((e) => '.$e')
+                        .join(', '),
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (choice == 'folder') await _pickModFolder();
+    if (choice == 'archive') await _pickModArchives();
   }
 
   /// Copies dropped or picked folders and zips into the NTE library.
@@ -1805,6 +1908,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                         ),
                       ),
                       const Spacer(),
+                      _buildAddModsButton(),
+                      const SizedBox(width: 12),
                       // Disable all mods toggle
                       _buildDisableAllToggle(),
                       const SizedBox(width: 12),
@@ -2722,23 +2827,23 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   Future<void> _showImportDialog() async {
     if (_isOperationInProgress) return;
 
-    showDialog(
+    final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.add_circle_outline, color: Color(0xFF0EA5E9)),
-            SizedBox(width: 8),
-            Text('Add mods'),
+            const Icon(Icons.add_circle_outline, color: Color(0xFF0EA5E9)),
+            const SizedBox(width: 8),
+            Text(loc.t('mods.dialog.add_mods_title')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Drag mod folders into the app window, press Ctrl+V to paste from clipboard, or copy them directly into the mods folder.',
-              style: TextStyle(fontSize: 14),
+            Text(
+              loc.t('mods.dialog.add_mods_description'),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
             Container(
@@ -2750,18 +2855,18 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                   color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.lightbulb_outline,
                     color: Color(0xFF0EA5E9),
                     size: 20,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'If the folder name contains a character name, the tag gets set automatically!',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF0EA5E9)),
+                      loc.t('mods.dialog.hint'),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF0EA5E9)),
                     ),
                   ),
                 ],
@@ -2772,11 +2877,31 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
+            child: Text(loc.t('mods.dialog.cancel')),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, 'archive'),
+            icon: const Icon(Icons.archive_outlined, size: 16),
+            label: Text(
+              loc.t(
+                'mods.add.archive',
+                params: {
+                  'formats': _supportedArchiveExtensions.map((e) => '.$e').join(', '),
+                },
+              ),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, 'folder'),
+            icon: const Icon(Icons.folder_open, size: 16),
+            label: Text(loc.t('mods.add.folder')),
           ),
         ],
       ),
     );
+
+    if (choice == 'folder') await _pickModFolder();
+    if (choice == 'archive') await _pickModArchives();
   }
 
   Future<void> _handlePasteFromClipboard() async {

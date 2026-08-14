@@ -143,6 +143,12 @@
     "categories": {
       "misc": "Misc",
       "unknown": "Unknown"
+    },
+    "add": {
+      "button": "Add mods",
+      "tooltip": "Add mods from a folder or archive",
+      "folder": "Choose folder",
+      "archive": "Choose archive ({formats})"
     }
   },
   "clipboard": {

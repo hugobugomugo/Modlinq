@@ -143,6 +143,12 @@
     "categories": {
       "misc": "Різне",
       "unknown": "Невідомі"
+    },
+    "add": {
+      "button": "Додати моди",
+      "tooltip": "Додати моди з теки або архіву",
+      "folder": "Вибрати теку",
+      "archive": "Вибрати архів ({formats})"
     }
   },
   "clipboard": {

@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/nte_mod.dart';
 import '../../services/api_service.dart';
 import '../../services/nte_mod_manager.dart';
+import '../../services/ntemm_importer.dart';
 import '../../utils/state_providers.dart';
 
 /// Mod library view for Neverness to Everness.
@@ -25,6 +26,7 @@ class NteModsList extends ConsumerStatefulWidget {
 class _NteModsListState extends ConsumerState<NteModsList> {
   NteModManager? _manager;
   List<NteMod> _mods = const [];
+  List<String> _ntemmRoots = const [];
   Set<String> _pending = {};
   bool _isLoading = true;
   bool _isDragging = false;
@@ -55,6 +57,7 @@ class _NteModsListState extends ConsumerState<NteModsList> {
       _manager = manager;
       _mods = manager.listMods();
       _pending = sync.locked.toSet();
+      _ntemmRoots = NteMmImporter.candidateRoots();
       _isLoading = false;
     });
   }
@@ -113,6 +116,30 @@ class _NteModsListState extends ConsumerState<NteModsList> {
   Future<void> _pickFolderAndImport() async {
     final picked = await FilePicker.getDirectoryPath();
     if (picked != null) await _import([picked]);
+  }
+
+  /// Migrates a standalone NTEMM library found on this machine.
+  Future<void> _importFromNtemm(String ntemmLibraryPath) async {
+    final manager = _manager;
+    if (manager == null) return;
+
+    setState(() => _isLoading = true);
+
+    final importer = NteMmImporter(manager.library);
+    final result = await Future(() => importer.importFrom(ntemmLibraryPath));
+
+    if (!mounted) return;
+    setState(() {
+      _mods = manager.listMods();
+      _isLoading = false;
+    });
+
+    _showMessage(
+      context.loc.t(
+        'nte.mods.ntemm_imported',
+        params: {'count': '${result.importedCount}', 'skipped': '${result.skippedCount}'},
+      ),
+    );
   }
 
   Future<void> _delete(NteMod mod) async {
@@ -232,6 +259,13 @@ class _NteModsListState extends ConsumerState<NteModsList> {
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const Spacer(),
+          // Offered only while a standalone NTEMM library is still around.
+          if (_ntemmRoots.isNotEmpty)
+            TextButton.icon(
+              onPressed: () => _importFromNtemm(_ntemmRoots.first),
+              icon: const Icon(Icons.move_to_inbox, size: 16),
+              label: Text(loc.t('nte.mods.import_ntemm')),
+            ),
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh, size: 18),

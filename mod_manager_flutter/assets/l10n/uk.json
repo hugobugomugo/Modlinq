@@ -139,6 +139,10 @@
       "plural": "модів",
       "success_single": "Додано {count} мод",
       "success_plural": "Додано {count} модів"
+    },
+    "categories": {
+      "misc": "Різне",
+      "unknown": "Невідомі"
     }
   },
   "clipboard": {
@@ -305,8 +309,7 @@
       "delete_message": "Видалити \"{mod}\" з бібліотеки? Файли, встановлені в грі, також буде видалено.",
       "delete_confirm": "Видалити",
       "import_ntemm": "Імпорт з NTEMM",
-      "ntemm_imported": "Імпортовано модів з NTEMM: {count}, пропущено: {skipped}",
-      "uncategorized": "Без групи"
+      "ntemm_imported": "Імпортовано модів з NTEMM: {count}, пропущено: {skipped}"
     }
   }
 }

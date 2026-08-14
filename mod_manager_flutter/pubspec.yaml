@@ -81,6 +81,7 @@ flutter:
   assets:
     - assets/characters/
     - assets/characters_ww/
+    - assets/characters_nte/
     - assets/mod_images/
     - assets/icon.png
     - assets/l10n/

@@ -22,6 +22,7 @@ import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
 import 'components/nte_setup_panel.dart';
 import '../services/ntemm_importer.dart';
+import '../utils/mod_categories.dart';
 import '../services/config_service.dart';
 import '../services/nte_mod_manager.dart';
 import '../services/nte_mods_adapter.dart';
@@ -142,6 +143,29 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     await loadMods(showLoading: false);
   }
 
+  /// Cards for mods that are not tied to one character.
+  ///
+  /// Misc is always offered so there is a drop target for game-wide mods such
+  /// as RabbitFX; unknown only appears once auto-tagging has left something in
+  /// it.
+  List<CharacterInfo> _buildSpecialCategories(Map<String, List<ModInfo>> modsByCategory) {
+    final unknownMods = modsByCategory[ModCategories.unknown] ?? const [];
+
+    return [
+      CharacterInfo(
+        id: ModCategories.misc,
+        name: loc.t('mods.categories.misc'),
+        skins: modsByCategory[ModCategories.misc] ?? const [],
+      ),
+      if (unknownMods.isNotEmpty)
+        CharacterInfo(
+          id: ModCategories.unknown,
+          name: loc.t('mods.categories.unknown'),
+          skins: unknownMods,
+        ),
+    ];
+  }
+
   /// Adapter for the currently configured NTE install, or null when the game
   /// folder has not been located yet.
   NteModsAdapter? get _nteAdapter {
@@ -188,9 +212,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       characters.add(CharacterInfo(id: 'all', name: loc.t('mods.all'), skins: mods));
     }
 
-    characters.addAll(
-      adapter.buildCategories(mods, uncategorizedLabel: loc.t('nte.mods.uncategorized')),
-    );
+    characters.addAll(adapter.buildCategories(mods));
+    characters.addAll(_buildSpecialCategories(adapter.specialBuckets(mods)));
 
     if (!mounted) return;
 
@@ -355,6 +378,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             .where((char) => char.skins.isNotEmpty)
             .toList(),
       );
+
+      characters.addAll(_buildSpecialCategories(characterMods));
 
       try {
         final modManagerService = await ApiService.getModManagerService();

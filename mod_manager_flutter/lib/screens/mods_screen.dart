@@ -1831,9 +1831,11 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                       // Disable all mods toggle
                       _buildDisableAllToggle(),
                       const SizedBox(width: 12),
-                      // Auto F10 toggle
-                      _buildAutoF10Toggle(),
-                      const SizedBox(width: 12),
+                      // F10 reload drives 3DMigoto through the ZZZ launcher.
+                      if (ref.watch(selectedGameProvider) == GameType.zzz) ...[
+                        _buildAutoF10Toggle(),
+                        const SizedBox(width: 12),
+                      ],
                       _buildRefreshModsButton(),
                       const SizedBox(width: 12),
                       // Offered only while a standalone NTEMM library remains.
@@ -1849,9 +1851,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                         ),
                         const SizedBox(width: 12),
                       ],
-                      // F10 Reload button
-                      _buildF10ReloadButton(),
-                      const SizedBox(width: 12),
+                      if (ref.watch(selectedGameProvider) == GameType.zzz) ...[
+                        _buildF10ReloadButton(),
+                        const SizedBox(width: 12),
+                      ],
                       // Mode toggle buttons
                       ModeToggleWidget(
                         modeToggleAnimationController:

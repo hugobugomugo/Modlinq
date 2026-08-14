@@ -162,14 +162,19 @@
       "language": "Мова",
       "auto_tag": "Автотегування",
       "auto_f10": "Автоматичне F10",
-      "appearance": "Зовнішній вигляд"
+      "appearance": "Зовнішній вигляд",
+      "general": "Загальні"
     },
     "paths": {
       "mods": "Папка з модами",
       "mods_hint": "Шлях до папки з оригінальними модами",
       "save_mods": "Папка links",
       "save_mods_hint": "Шлях, де створюватимуться симлінки",
-      "browse": "Огляд"
+      "browse": "Огляд",
+      "nte_game": "Тека гри",
+      "nte_game_hint": "Встановлена Neverness to Everness",
+      "nte_library": "Тека бібліотеки модів",
+      "nte_library_hint": "Де зберігаються імпортовані моди NTE"
     },
     "language": {
       "title": "Мова",

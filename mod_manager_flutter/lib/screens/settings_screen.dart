@@ -6,7 +6,8 @@ import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/game_roster.dart';
-import '../utils/zzz_characters.dart';
+import '../services/nte_game_detection.dart';
+import '../services/nte_mod_manager.dart';
 import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   final _saveModsPathController = TextEditingController();
   final _wwModsPathController = TextEditingController();
   final _wwSaveModsPathController = TextEditingController();
+  final _nteGamePathController = TextEditingController();
+  final _nteLibraryPathController = TextEditingController();
   bool isLoading = false;
   String _selectedLanguage = 'en';
   bool _isUpdatingLanguage = false;
@@ -52,6 +55,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     _saveModsPathController.dispose();
     _wwModsPathController.dispose();
     _wwSaveModsPathController.dispose();
+    _nteGamePathController.dispose();
+    _nteLibraryPathController.dispose();
     super.dispose();
   }
 
@@ -65,6 +70,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         _saveModsPathController.text = config['save_mods_path'] ?? '';
         _wwModsPathController.text = config['mods_path_ww'] ?? '';
         _wwSaveModsPathController.text = config['save_mods_path_ww'] ?? '';
+        _nteGamePathController.text = configService.nteGamePath ?? '';
+        _nteLibraryPathController.text = NteModManager.resolveLibraryPath(configService);
         _selectedLanguage = config['language'] ?? 'en';
         _persistModSettings = configService.persistModSettings;
         isLoading = false;
@@ -102,9 +109,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     }
   }
 
+  Future<void> pickNteGamePath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result == null) return;
+
+    if (!NteGameDetection.validate(result).valid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.loc.t('nte.setup.invalid_folder')),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _nteGamePathController.text = result);
+  }
+
+  Future<void> pickNteLibraryPath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null) {
+      setState(() => _nteLibraryPathController.text = result);
+    }
+  }
+
   Future<void> saveConfig() async {
     final loc = context.loc;
     try {
+      final configService = await ApiService.getConfigService();
+      await configService.setNteGamePath(_nteGamePathController.text);
+      await configService.setNteLibraryPath(_nteLibraryPathController.text);
       await ApiService.updateConfig(
         modsPath: _modsPathController.text,
         saveModsPath: _saveModsPathController.text,
@@ -138,6 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   Widget build(BuildContext context) {
     final loc = context.loc;
     final isDarkMode = ref.watch(isDarkModeProvider);
+    final selectedGame = ref.watch(selectedGameProvider);
 
     return Column(
       children: [
@@ -231,87 +268,124 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                           child: FadeInAnimation(child: widget),
                         ),
                         children: [
-                          // ZZZ Paths Section
-                          _buildSectionTitle(loc.t('settings.sections.paths_zzz')),
-                          const SizedBox(height: 16),
-                          _buildPathField(
-                            label: loc.t('settings.paths.mods'),
-                            hint: loc.t('settings.paths.mods_hint'),
-                            controller: _modsPathController,
-                            onBrowse: pickModsPath,
+                          _buildCollapsibleSection(
+                            title: GameType.zzz.displayName,
+                            subtitle: loc.t('settings.sections.paths'),
                             isDarkMode: isDarkMode,
-                            loc: loc,
+                            initiallyExpanded: selectedGame == GameType.zzz,
+                            children: [
+                              _buildPathField(
+                                label: loc.t('settings.paths.mods'),
+                                hint: loc.t('settings.paths.mods_hint'),
+                                controller: _modsPathController,
+                                onBrowse: pickModsPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPathField(
+                                label: loc.t('settings.paths.save_mods'),
+                                hint: loc.t('settings.paths.save_mods_hint'),
+                                controller: _saveModsPathController,
+                                onBrowse: pickSaveModsPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 24),
+                              // F10 reload drives 3DMigoto through the ZZZ
+                              // launcher, so it is offered for ZZZ only.
+                              _buildSectionTitle(loc.t('settings.sections.auto_f10')),
+                              const SizedBox(height: 16),
+                              _buildF10Section(loc, isDarkMode),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          _buildPathField(
-                            label: loc.t('settings.paths.save_mods'),
-                            hint: loc.t('settings.paths.save_mods_hint'),
-                            controller: _saveModsPathController,
-                            onBrowse: pickSaveModsPath,
+                          _buildCollapsibleSection(
+                            title: GameType.wutheringWaves.displayName,
+                            subtitle: loc.t('settings.sections.paths'),
                             isDarkMode: isDarkMode,
-                            loc: loc,
+                            initiallyExpanded: selectedGame == GameType.wutheringWaves,
+                            children: [
+                              _buildPathField(
+                                label: loc.t('settings.paths.mods'),
+                                hint: loc.t('settings.paths.mods_hint'),
+                                controller: _wwModsPathController,
+                                onBrowse: pickWwModsPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPathField(
+                                label: loc.t('settings.paths.save_mods'),
+                                hint: loc.t('settings.paths.save_mods_hint'),
+                                controller: _wwSaveModsPathController,
+                                onBrowse: pickWwSaveModsPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 32),
-                          // WW Paths Section
-                          _buildSectionTitle(loc.t('settings.sections.paths_ww')),
-                          const SizedBox(height: 16),
-                          _buildPathField(
-                            label: loc.t('settings.paths.mods'),
-                            hint: loc.t('settings.paths.mods_hint'),
-                            controller: _wwModsPathController,
-                            onBrowse: pickWwModsPath,
+                          _buildCollapsibleSection(
+                            title: GameType.nte.displayName,
+                            subtitle: loc.t('settings.sections.paths'),
                             isDarkMode: isDarkMode,
-                            loc: loc,
+                            initiallyExpanded: selectedGame == GameType.nte,
+                            children: [
+                              _buildPathField(
+                                label: loc.t('settings.paths.nte_game'),
+                                hint: loc.t('settings.paths.nte_game_hint'),
+                                controller: _nteGamePathController,
+                                onBrowse: pickNteGamePath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPathField(
+                                label: loc.t('settings.paths.nte_library'),
+                                hint: loc.t('settings.paths.nte_library_hint'),
+                                controller: _nteLibraryPathController,
+                                onBrowse: pickNteLibraryPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          _buildPathField(
-                            label: loc.t('settings.paths.save_mods'),
-                            hint: loc.t('settings.paths.save_mods_hint'),
-                            controller: _wwSaveModsPathController,
-                            onBrowse: pickWwSaveModsPath,
+                          _buildCollapsibleSection(
+                            title: loc.t('settings.sections.general'),
                             isDarkMode: isDarkMode,
-                            loc: loc,
+                            children: [
+                              _buildSectionTitle(loc.t('settings.sections.language')),
+                              const SizedBox(height: 16),
+                              _buildLanguageSelector(loc, isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle(loc.t('settings.sections.auto_tag')),
+                              const SizedBox(height: 16),
+                              _buildAutoTagSection(loc, isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Mod Settings Persistence'),
+                              const SizedBox(height: 16),
+                              _buildSettingRow(
+                                label: 'Persist settings across skin swaps',
+                                isDarkMode: isDarkMode,
+                                trailing: Switch(
+                                  value: _persistModSettings,
+                                  onChanged: (value) async {
+                                    setState(() => _persistModSettings = value);
+                                    final configService = await ApiService.getConfigService();
+                                    await configService.setPersistModSettings(value);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text(
+                                  'When enabled (default), in-game settings changed via keybinds are saved by 3DMigoto and restored when you switch back to a mod. Disable to always reset to defaults on deactivation.',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 32),
-                          // Language Section
-                          _buildSectionTitle(loc.t('settings.sections.language')),
                           const SizedBox(height: 16),
-                          _buildLanguageSelector(loc, isDarkMode),
-                          const SizedBox(height: 32),
-                          // Auto-Tagging Section
-                          _buildSectionTitle(loc.t('settings.sections.auto_tag')),
-                          const SizedBox(height: 16),
-                          _buildAutoTagSection(loc, isDarkMode),
-                          const SizedBox(height: 32),
-                          // F10 Reload Section
-                          _buildSectionTitle(loc.t('settings.sections.auto_f10')),
-                          const SizedBox(height: 16),
-                          _buildF10Section(loc, isDarkMode),
-                          const SizedBox(height: 32),
-                          // Mod Settings Persistence Section
-                          _buildSectionTitle('Mod Settings Persistence'),
-                          const SizedBox(height: 16),
-                          _buildSettingRow(
-                            label: 'Persist settings across skin swaps',
-                            isDarkMode: isDarkMode,
-                            trailing: Switch(
-                              value: _persistModSettings,
-                              onChanged: (value) async {
-                                setState(() => _persistModSettings = value);
-                                final configService = await ApiService.getConfigService();
-                                await configService.setPersistModSettings(value);
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              'When enabled (default), in-game settings changed via keybinds are saved by 3DMigoto and restored when you switch back to a mod. Disable to always reset to defaults on deactivation.',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
                           // Appearance Section
                           _buildSectionTitle(loc.t('settings.sections.appearance')),
                           const SizedBox(height: 16),
@@ -1176,6 +1250,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         fontSize: 14,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  /// Collapsible group, so only the settings for the game being worked on are
+  /// on screen at once.
+  Widget _buildCollapsibleSection({
+    required String title,
+    required bool isDarkMode,
+    required List<Widget> children,
+    String? subtitle,
+    bool initiallyExpanded = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Theme(
+        // The default divider draws a hard line across the rounded corners.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          leading: Icon(Icons.folder_outlined, size: 20, color: Colors.grey[600]),
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          subtitle: subtitle == null
+              ? null
+              : Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+          children: children,
+        ),
       ),
     );
   }

@@ -164,14 +164,19 @@
       "language": "Language",
       "auto_tag": "Automatic tagging",
       "auto_f10": "Automatic mod reload",
-      "appearance": "Appearance"
+      "appearance": "Appearance",
+      "general": "General"
     },
     "paths": {
       "mods": "Mods folder",
       "mods_hint": "Path where original mods are stored",
       "save_mods": "Links folder",
       "save_mods_hint": "Path where symlinks will be created",
-      "browse": "Browse"
+      "browse": "Browse",
+      "nte_game": "Game folder",
+      "nte_game_hint": "Your Neverness to Everness install",
+      "nte_library": "Mod library folder",
+      "nte_library_hint": "Where imported NTE mods are stored"
     },
     "language": {
       "title": "Language",

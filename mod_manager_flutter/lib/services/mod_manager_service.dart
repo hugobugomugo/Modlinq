@@ -174,8 +174,9 @@ class ModManagerService {
         await _clearD3dxUserIniEntries(modName);
       }
 
-      final autoF10Enabled = _container.read(autoF10ReloadProvider);
-      if (autoF10Enabled) {
+      // F10 reload only reaches 3DMigoto in ZZZ.
+      if (_container.read(autoF10ReloadProvider) &&
+          _container.read(selectedGameProvider) == GameType.zzz) {
         await _platformService.sendF10ToGame();
       }
 
@@ -285,8 +286,9 @@ class ModManagerService {
         await _resetModPersistDefaults(modName);
       }
 
-      final autoF10Enabled = _container.read(autoF10ReloadProvider);
-      if (autoF10Enabled) {
+      // F10 reload only reaches 3DMigoto in ZZZ.
+      if (_container.read(autoF10ReloadProvider) &&
+          _container.read(selectedGameProvider) == GameType.zzz) {
         await _platformService.sendF10ToGame();
       }
 

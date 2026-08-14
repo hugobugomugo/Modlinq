@@ -21,6 +21,10 @@ import '../utils/path_helper.dart';
 import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
 import 'components/nte_setup_panel.dart';
+import '../services/ntemm_importer.dart';
+import '../services/config_service.dart';
+import '../services/nte_mod_manager.dart';
+import '../services/nte_mods_adapter.dart';
 import 'components/character_cards_list_widget.dart';
 import 'components/mod_card_widget.dart';
 
@@ -38,6 +42,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   String? errorMessage;
   Map<String, String> modCharacterTags = {}; // modId -> characterId
   Set<String> favoriteMods = {};
+  ConfigService? _cachedConfigService;
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -103,12 +108,31 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   Future<void> _loadTags() async {
     final configService = await ApiService.getConfigService();
+    if (!mounted) return;
     setState(() {
+      _cachedConfigService = configService;
       modCharacterTags = configService.modCharacterTags;
     });
   }
 
   Future<void> _saveTag(String modId, String characterId) async {
+    // For NTE the strip holds categories, so dropping a mod regroups it.
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      final adapter = _nteAdapter;
+      if (adapter == null) return;
+
+      final mods = ref.read(modsProvider);
+      final mod = mods.where((m) => m.id == modId).firstOrNull;
+      if (mod == null) return;
+
+      final result = await adapter.setCategory(mod, characterId);
+      if (result.locked.isNotEmpty) {
+        _showSnack(loc.t('nte.mods.locked'), isError: true);
+      }
+      await _loadNteMods(showLoading: false);
+      return;
+    }
+
     final configService = await ApiService.getConfigService();
     await configService.setModCharacterTag(modId, characterId);
     setState(() {
@@ -118,19 +142,98 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     await loadMods(showLoading: false);
   }
 
+  /// Adapter for the currently configured NTE install, or null when the game
+  /// folder has not been located yet.
+  NteModsAdapter? get _nteAdapter {
+    final config = _cachedConfigService;
+    if (config == null) return null;
+
+    final manager = NteModManager.fromConfig(config);
+    return manager == null ? null : NteModsAdapter(manager);
+  }
+
+  /// Loads the NTE library into the same providers the mod grid reads.
+  Future<void> _loadNteMods({bool showLoading = true}) async {
+    setState(() {
+      if (showLoading) isLoading = true;
+      errorMessage = null;
+    });
+
+    _cachedConfigService = await ApiService.getConfigService();
+    final adapter = _nteAdapter;
+
+    if (adapter == null) {
+      ref.read(charactersProvider.notifier).setValue([]);
+      ref.read(modsProvider.notifier).setValue([]);
+      if (mounted) setState(() => isLoading = false);
+      return;
+    }
+
+    adapter.manager.library.ensureExists();
+
+    // Reapply intent so a mod the game had locked earlier is retried.
+    final sync = await adapter.manager.syncWithIntent();
+
+    final mods = adapter.listMods();
+    final characters = <CharacterInfo>[];
+
+    final favorites = mods.where((mod) => mod.isFavorite).toList();
+    if (favorites.isNotEmpty) {
+      characters.add(
+        CharacterInfo(id: 'favorites', name: loc.t('mods.favorites'), skins: favorites),
+      );
+    }
+
+    if (mods.isNotEmpty) {
+      characters.add(CharacterInfo(id: 'all', name: loc.t('mods.all'), skins: mods));
+    }
+
+    characters.addAll(
+      adapter.buildCategories(mods, uncategorizedLabel: loc.t('nte.mods.uncategorized')),
+    );
+
+    if (!mounted) return;
+
+    ref.read(charactersProvider.notifier).setValue(characters);
+    ref.read(modsProvider.notifier).setValue(mods);
+
+    final selectedIndex = ref.read(selectedCharacterIndexProvider);
+    if (selectedIndex >= characters.length) {
+      ref.read(selectedCharacterIndexProvider.notifier).setValue(0);
+    }
+
+    setState(() {
+      _lastCharactersState = List.from(characters);
+      favoriteMods = mods.where((m) => m.isFavorite).map((m) => m.id).toSet();
+      isLoading = false;
+    });
+
+    if (sync.locked.isNotEmpty) {
+      _showSnack(loc.t('nte.mods.locked'), isError: true);
+    }
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFDC2626) : null,
+      ),
+    );
+  }
+
   Future<void> loadMods({bool showLoading = true}) async {
     // Prevent multiple simultaneous load operations
     if (_isLoadingMods) return;
 
-    // NTE uses the pak backend and its own setup panel, not the migoto paths.
+    // NTE stores mods as pak/asi files, so it loads through its own backend.
     if (ref.read(selectedGameProvider) == GameType.nte) {
-      ref.read(charactersProvider.notifier).setValue([]);
-      ref.read(modsProvider.notifier).setValue([]);
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-          errorMessage = null;
-        });
+      _isLoadingMods = true;
+      try {
+        await _loadNteMods(showLoading: showLoading);
+      } finally {
+        _isLoadingMods = false;
       }
       return;
     }
@@ -304,6 +407,22 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   Future<void> toggleMod(ModInfo mod) async {
     // Prevent multiple simultaneous operations
     if (_isOperationInProgress) return;
+
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      final adapter = _nteAdapter;
+      if (adapter == null) return;
+
+      final result = await adapter.toggle(mod);
+      if (result.locked.isNotEmpty) {
+        _showSnack(loc.t('nte.mods.locked'), isError: true);
+      }
+      for (final error in result.errors.values) {
+        _showSnack(error, isError: true);
+      }
+      await _loadNteMods(showLoading: false);
+      return;
+    }
+
     _isOperationInProgress = true;
 
     // Cancel any pending debounce
@@ -431,6 +550,15 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Future<void> _toggleFavorite(ModInfo mod) async {
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      final adapter = _nteAdapter;
+      if (adapter == null) return;
+
+      await adapter.toggleFavorite(mod);
+      await _loadNteMods(showLoading: false);
+      return;
+    }
+
     try {
       final configService = await ApiService.getConfigService();
       final isFavorite = favoriteMods.contains(mod.id);
@@ -739,6 +867,11 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Future<void> _pasteImageFromClipboard(ModInfo mod) async {
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      await _setNteImageFromClipboard(mod);
+      return;
+    }
+
     try {
       final imageBytes = await Pasteboard.image;
       if (imageBytes != null) {
@@ -811,6 +944,71 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     }
   }
 
+  /// Copies dropped or picked folders and zips into the NTE library.
+  Future<void> _importNteMods(List<String> paths) async {
+    final adapter = _nteAdapter;
+    if (adapter == null || paths.isEmpty) return;
+
+    final skipped = <String, String>{};
+    final imported = adapter.manager.import(paths, skipped: skipped);
+
+    await _loadNteMods(showLoading: false);
+
+    if (imported.isNotEmpty) {
+      _showSnack(
+        loc.t('nte.mods.imported', params: {'count': '${imported.length}'}),
+      );
+    }
+    for (final entry in skipped.entries) {
+      _showSnack('${entry.key}: ${entry.value}', isError: true);
+    }
+  }
+
+  /// Migrates a standalone NTEMM library, when one is still on this machine.
+  Future<void> _importFromNtemm() async {
+    final adapter = _nteAdapter;
+    final roots = NteMmImporter.candidateRoots();
+    if (adapter == null || roots.isEmpty) return;
+
+    setState(() => isLoading = true);
+
+    final importer = NteMmImporter(adapter.manager.library);
+    final result = await Future(() => importer.importFrom(roots.first));
+
+    await _loadNteMods(showLoading: false);
+    _showSnack(
+      loc.t(
+        'nte.mods.ntemm_imported',
+        params: {'count': '${result.importedCount}', 'skipped': '${result.skippedCount}'},
+      ),
+    );
+  }
+
+  /// NTE previews live inside the mod's own folder, so they travel with the
+  /// mod when it is renamed or moved between categories.
+  Future<void> _setNteImageFromClipboard(ModInfo mod) async {
+    final adapter = _nteAdapter;
+    if (adapter == null) return;
+
+    try {
+      final imageBytes = await Pasteboard.image;
+      if (imageBytes == null) {
+        _showSnack(loc.t('mods.snackbar.clipboard_empty'), isError: true);
+        return;
+      }
+
+      adapter.setImage(mod, imageBytes);
+
+      imageCache.clear();
+      imageCache.clearLiveImages();
+
+      await _loadNteMods(showLoading: false);
+      _showSnack(loc.t('mods.snackbar.photo_updated'));
+    } catch (e) {
+      _showSnack(loc.t('mods.snackbar.paste_error', params: {'message': '$e'}), isError: true);
+    }
+  }
+
   Future<void> _showRenameDialog(ModInfo mod) async {
     final controller = TextEditingController(text: mod.name);
     final newName = await showDialog<String>(
@@ -838,6 +1036,20 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     controller.dispose();
 
     if (newName == null || newName.isEmpty || newName == mod.name) return;
+
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      final adapter = _nteAdapter;
+      if (adapter == null) return;
+
+      try {
+        await adapter.rename(mod, newName);
+        await _loadNteMods(showLoading: false);
+        _showSnack('"${mod.name}" renamed to "$newName"');
+      } catch (e) {
+        _showSnack(e is StateError ? e.message : e.toString(), isError: true);
+      }
+      return;
+    }
 
     final success = await ApiService.renameMod(mod.id, newName);
     if (!mounted) return;
@@ -876,6 +1088,16 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
 
     if (confirmed != true) return;
+
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      final adapter = _nteAdapter;
+      if (adapter == null) return;
+
+      await adapter.delete(mod);
+      await _loadNteMods(showLoading: false);
+      _showSnack('"${mod.name}" deleted');
+      return;
+    }
 
     final success = await ApiService.deleteMod(mod.id);
     if (!mounted) return;
@@ -1426,8 +1648,9 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       }
     });
 
-    if (ref.watch(selectedGameProvider) == GameType.nte) {
-      return const NteSetupPanel();
+    // NTE needs its game folder before the grid has anything to show.
+    if (ref.watch(selectedGameProvider) == GameType.nte && _nteAdapter == null) {
+      return NteSetupPanel(onInstallReady: () => loadMods(showLoading: false));
     }
 
     if (isLoading) {
@@ -1589,6 +1812,19 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                       const SizedBox(width: 12),
                       _buildRefreshModsButton(),
                       const SizedBox(width: 12),
+                      // Offered only while a standalone NTEMM library remains.
+                      if (ref.watch(selectedGameProvider) == GameType.nte &&
+                          NteMmImporter.candidateRoots().isNotEmpty) ...[
+                        Tooltip(
+                          message: loc.t('nte.mods.import_ntemm'),
+                          child: OutlinedButton.icon(
+                            onPressed: _importFromNtemm,
+                            icon: const Icon(Icons.move_to_inbox, size: 16),
+                            label: Text(loc.t('nte.mods.import_ntemm')),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
                       // F10 Reload button
                       _buildF10ReloadButton(),
                       const SizedBox(width: 12),
@@ -2129,6 +2365,13 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   Future<void> _importModsFromFolders(List<XFile> files) async {
     if (_isOperationInProgress) return;
+
+    // NTE mods are copied into its own library rather than symlinked.
+    if (ref.read(selectedGameProvider) == GameType.nte) {
+      setState(() => _isDragging = false);
+      await _importNteMods(files.map((f) => f.path).toList());
+      return;
+    }
 
     setState(() {
       _isOperationInProgress = true;

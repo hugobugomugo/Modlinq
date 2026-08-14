@@ -82,10 +82,26 @@ class NteModManager {
     return installer.apply([mod], enabled ? {modName} : const {});
   }
 
-  /// Reapplies stored intent, picking up any mod that was locked earlier.
-  NteApplyResult syncWithIntent() {
+  /// Installs mods that should be enabled but are not, such as one the game
+  /// had locked when it was toggled.
+  ///
+  /// This never uninstalls. Mods already present in the game folder are adopted
+  /// into the stored intent, so mods enabled before this app managed them — or
+  /// by any other tool — are kept rather than removed.
+  Future<NteApplyResult> syncWithIntent() async {
+    final mods = listMods();
+    final installed = mods.where((mod) => mod.enabled).map((mod) => mod.name).toSet();
     final intent = config.nteEnabledMods.toSet();
-    return installer.apply(listMods(), intent);
+
+    final adopted = {...intent, ...installed};
+    if (adopted.length != intent.length) {
+      await config.setNteEnabledMods(adopted.toList());
+    }
+
+    final missing = mods.where((mod) => adopted.contains(mod.name) && !mod.enabled);
+    if (missing.isEmpty) return const NteApplyResult();
+
+    return installer.apply(missing, adopted);
   }
 
   /// Moves a mod into [category], or to the root when null. The mod is
@@ -105,6 +121,56 @@ class NteModManager {
           : NteApplyResult(errors: {modName: e.toString()});
     }
   }
+
+  /// Renames a mod, carrying its category, enabled state and favourite flag
+  /// across to the new name.
+  ///
+  /// An enabled mod is uninstalled first, because the copy in the game folder
+  /// is keyed by the old name and would otherwise be left behind.
+  Future<NteMod> rename(String oldName, String newName) async {
+    final existing = _resolve(oldName);
+    if (existing == null) {
+      throw StateError('Mod "$oldName" is not in the library');
+    }
+
+    final wasEnabled = installer.isEnabled(existing);
+    if (wasEnabled) installer.disable(existing);
+
+    final renamed = library.renameMod(oldName, newName);
+
+    final category = config.nteModCategories[oldName];
+    if (category != null) {
+      await config.setNteModCategory(oldName, null);
+      await config.setNteModCategory(renamed.name, category);
+    }
+
+    final intent = config.nteEnabledMods.toSet();
+    if (intent.remove(oldName)) intent.add(renamed.name);
+    await config.setNteEnabledMods(intent.toList());
+
+    final favorites = config.nteFavoriteMods.toSet();
+    if (favorites.remove(oldName)) favorites.add(renamed.name);
+    await config.setNteFavoriteMods(favorites.toList());
+
+    final withCategory = renamed.copyWith(category: category);
+    if (wasEnabled) installer.enable(withCategory);
+
+    return withCategory.copyWith(enabled: wasEnabled);
+  }
+
+  bool isFavorite(String modName) => config.nteFavoriteMods.contains(modName);
+
+  Future<void> toggleFavorite(String modName) async {
+    final favorites = config.nteFavoriteMods.toSet();
+    favorites.contains(modName) ? favorites.remove(modName) : favorites.add(modName);
+    await config.setNteFavoriteMods(favorites.toList());
+  }
+
+  /// Stores a preview image for a mod and returns its path.
+  String setPreviewImage(String modName, List<int> bytes, {String extension = 'png'}) =>
+      library.setPreviewImage(modName, bytes, extension: extension);
+
+  String? previewImageFor(String modName) => library.previewImageFor(modName);
 
   /// Imports mod folders and zip archives into the library.
   ///
@@ -156,6 +222,9 @@ class NteModManager {
 
     final intent = config.nteEnabledMods..remove(modName);
     await config.setNteEnabledMods(intent);
+
+    final favorites = config.nteFavoriteMods..remove(modName);
+    await config.setNteFavoriteMods(favorites);
   }
 
   NteMod? _resolve(String modName) {

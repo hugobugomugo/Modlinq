@@ -305,7 +305,8 @@
       "delete_message": "Видалити \"{mod}\" з бібліотеки? Файли, встановлені в грі, також буде видалено.",
       "delete_confirm": "Видалити",
       "import_ntemm": "Імпорт з NTEMM",
-      "ntemm_imported": "Імпортовано модів з NTEMM: {count}, пропущено: {skipped}"
+      "ntemm_imported": "Імпортовано модів з NTEMM: {count}, пропущено: {skipped}",
+      "uncategorized": "Без групи"
     }
   }
 }

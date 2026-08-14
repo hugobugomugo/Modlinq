@@ -15,6 +15,7 @@ class ConfigService {
   static const String _keyNteLibraryPath = 'library_path_nte';
   static const String _keyNteModCategories = 'mod_categories_nte';
   static const String _keyNteEnabledMods = 'enabled_mods_nte';
+  static const String _keyNteFavoriteMods = 'favorite_mods_nte';
   static const String _keyActiveMods = 'active_mods';
   static const String _keyWwActiveMods = 'active_mods_ww';
   static const String _keyTheme = 'theme';
@@ -109,6 +110,16 @@ class ConfigService {
   Future<bool> setNteEnabledMods(List<String> modNames) async {
     try {
       return await _prefs.setStringList(_keyNteEnabledMods, modNames);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  List<String> get nteFavoriteMods => _prefs.getStringList(_keyNteFavoriteMods) ?? [];
+
+  Future<bool> setNteFavoriteMods(List<String> modNames) async {
+    try {
+      return await _prefs.setStringList(_keyNteFavoriteMods, modNames);
     } catch (e) {
       return false;
     }

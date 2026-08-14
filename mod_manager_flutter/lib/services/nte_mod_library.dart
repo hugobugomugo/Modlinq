@@ -170,6 +170,71 @@ class NteModLibrary {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   }
 
+  /// Renames a mod's folder, which is also its id.
+  ///
+  /// Callers must disable the mod first: the installed copy is keyed by the old
+  /// name and would otherwise be orphaned in the game folder.
+  NteMod renameMod(String oldName, String newName) {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Mod name cannot be empty');
+    }
+    if (trimmed.contains(RegExp(r'[/\\]'))) {
+      throw ArgumentError('Mod name cannot contain path separators');
+    }
+
+    final source = Directory(p.join(rootPath, oldName));
+    if (!source.existsSync()) {
+      throw StateError('Mod "$oldName" is not in the library');
+    }
+
+    if (trimmed == oldName) return _readMod(source.path);
+
+    final target = Directory(p.join(rootPath, trimmed));
+    // A case-only rename maps to the same folder on case-insensitive systems,
+    // so only a genuinely different mod counts as a conflict.
+    if (target.existsSync() && trimmed.toLowerCase() != oldName.toLowerCase()) {
+      throw StateError('A mod named "$trimmed" is already in the library');
+    }
+
+    source.renameSync(target.path);
+    return _readMod(target.path);
+  }
+
+  /// Preview image stored inside a mod's folder, if it has one.
+  String? previewImageFor(String name) {
+    final dir = Directory(p.join(rootPath, name));
+    if (!dir.existsSync()) return null;
+
+    final images = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => isPreviewImage(p.basename(f.path)))
+        .map((f) => f.path)
+        .toList();
+
+    images.sort();
+    return images.isEmpty ? null : images.first;
+  }
+
+  /// Replaces a mod's preview image with [imageBytes].
+  ///
+  /// Existing previews are removed so the newest image is always the one shown.
+  String setPreviewImage(String name, List<int> imageBytes, {String extension = 'png'}) {
+    final dir = Directory(p.join(rootPath, name));
+    if (!dir.existsSync()) {
+      throw StateError('Mod "$name" is not in the library');
+    }
+
+    for (final file in dir.listSync().whereType<File>()) {
+      if (isPreviewImage(p.basename(file.path))) file.deleteSync();
+    }
+
+    final target = p.join(dir.path, 'preview.$extension');
+    File(target).writeAsBytesSync(imageBytes);
+    return target;
+  }
+
   static void _copyDirectory(Directory source, Directory target) {
     target.createSync(recursive: true);
 

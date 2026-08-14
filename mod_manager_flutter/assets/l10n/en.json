@@ -307,7 +307,8 @@
       "delete_message": "Remove \"{mod}\" from your library? Files installed in the game are removed too.",
       "delete_confirm": "Delete",
       "import_ntemm": "Import from NTEMM",
-      "ntemm_imported": "Imported {count} mod(s) from NTEMM, skipped {skipped}"
+      "ntemm_imported": "Imported {count} mod(s) from NTEMM, skipped {skipped}",
+      "uncategorized": "Ungrouped"
     }
   }
 }

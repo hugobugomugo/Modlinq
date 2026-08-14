@@ -15,13 +15,10 @@ import '../models/keybind_info.dart';
 import '../services/api_service.dart';
 import '../services/archive_service.dart';
 import '../utils/state_providers.dart';
-import '../utils/zzz_characters.dart';
-import '../utils/ww_characters.dart';
 import '../utils/path_helper.dart';
 import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
 import 'components/nte_setup_panel.dart';
-import '../services/ntemm_importer.dart';
 import '../utils/mod_categories.dart';
 import '../utils/game_roster.dart';
 import '../services/config_service.dart';
@@ -979,26 +976,6 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     }
   }
 
-  /// Migrates a standalone NTEMM library, when one is still on this machine.
-  Future<void> _importFromNtemm() async {
-    final adapter = _nteAdapter;
-    final roots = NteMmImporter.candidateRoots();
-    if (adapter == null || roots.isEmpty) return;
-
-    setState(() => isLoading = true);
-
-    final importer = NteMmImporter(adapter.manager.library);
-    final result = await Future(() => importer.importFrom(roots.first));
-
-    await _loadNteMods(showLoading: false);
-    _showSnack(
-      loc.t(
-        'nte.mods.ntemm_imported',
-        params: {'count': '${result.importedCount}', 'skipped': '${result.skippedCount}'},
-      ),
-    );
-  }
-
   /// NTE previews live inside the mod's own folder, so they travel with the
   /// mod when it is renamed or moved between categories.
   Future<void> _setNteImageFromClipboard(ModInfo mod) async {
@@ -1838,19 +1815,6 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                       ],
                       _buildRefreshModsButton(),
                       const SizedBox(width: 12),
-                      // Offered only while a standalone NTEMM library remains.
-                      if (ref.watch(selectedGameProvider) == GameType.nte &&
-                          NteMmImporter.candidateRoots().isNotEmpty) ...[
-                        Tooltip(
-                          message: loc.t('nte.mods.import_ntemm'),
-                          child: OutlinedButton.icon(
-                            onPressed: _importFromNtemm,
-                            icon: const Icon(Icons.move_to_inbox, size: 16),
-                            label: Text(loc.t('nte.mods.import_ntemm')),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
                       if (ref.watch(selectedGameProvider) == GameType.zzz) ...[
                         _buildF10ReloadButton(),
                         const SizedBox(width: 12),

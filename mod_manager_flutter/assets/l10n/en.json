@@ -314,9 +314,7 @@
       "locked": "The game is holding these files open. Close it and hit refresh.",
       "delete_title": "Delete mod",
       "delete_message": "Remove \"{mod}\" from your library? Files installed in the game are removed too.",
-      "delete_confirm": "Delete",
-      "import_ntemm": "Import from NTEMM",
-      "ntemm_imported": "Imported {count} mod(s) from NTEMM, skipped {skipped}"
+      "delete_confirm": "Delete"
     }
   }
 }

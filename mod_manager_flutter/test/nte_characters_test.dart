@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mod_manager_flutter/utils/mod_categories.dart';
-import 'package:mod_manager_flutter/utils/nte_characters.dart';
+import 'package:modlinq/utils/mod_categories.dart';
+import 'package:modlinq/utils/nte_characters.dart';
 
 void main() {
   group('detectNteCharacter', () {

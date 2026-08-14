@@ -2,7 +2,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mod_manager_flutter/utils/zzz_characters.dart';
+import 'package:modlinq/utils/zzz_characters.dart';
 
 void main() {
   group('ZZZ roster integrity', () {

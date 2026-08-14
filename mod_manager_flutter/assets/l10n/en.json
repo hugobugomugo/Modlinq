@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "ZZZ Mod Manager",
+    "title": "Modlinq",
     "brand_subtitle": "Mod Manager"
   },
   "navigation": {
@@ -265,7 +265,7 @@
     "unknown": "Unknown"
   },
   "welcome": {
-    "title": "Welcome to ZZZ Mod Manager!",
+    "title": "Welcome to Modlinq!",
     "subtitle": "Let's set up the app for first use",
     "step_of": "Step {current} of {total}",
     "language": {

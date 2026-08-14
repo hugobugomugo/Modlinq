@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/path_helper.dart';
 import 'platform_service.dart';
 
 /// Linux-специфічна реалізація PlatformService
@@ -90,19 +91,8 @@ class LinuxPlatformService implements PlatformService {
   }
   
   @override
-  String getAppDataPath() {
-    final homeDir = Platform.environment['HOME'];
-    if (homeDir == null) {
-      throw Exception('HOME environment variable not found');
-    }
-    
-    // Використовуємо XDG Base Directory Specification
-    final xdgDataHome = Platform.environment['XDG_DATA_HOME'] ?? 
-                        path.join(homeDir, '.local', 'share');
-    
-    return path.join(xdgDataHome, 'zzz-mod-manager');
-  }
-  
+  String getAppDataPath() => PathHelper.getAppDataPath();
+
   @override
   void showSetupInstructions() {
     print('\n═══════════════════════════════════════════════════════════');

@@ -4,6 +4,7 @@ import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/path_helper.dart';
 import 'platform_service.dart';
 
 /// Windows-специфічна реалізація PlatformService
@@ -155,20 +156,8 @@ class WindowsPlatformService implements PlatformService {
   }
   
   @override
-  String getAppDataPath() {
-    final appData = Platform.environment['APPDATA'];
-    if (appData == null) {
-      // Fallback на USERPROFILE\AppData\Roaming
-      final userProfile = Platform.environment['USERPROFILE'];
-      if (userProfile == null) {
-        throw Exception('APPDATA and USERPROFILE environment variables not found');
-      }
-      return path.join(userProfile, 'AppData', 'Roaming', 'zzz-mod-manager');
-    }
-    
-    return path.join(appData, 'zzz-mod-manager');
-  }
-  
+  String getAppDataPath() => PathHelper.getAppDataPath();
+
   @override
   void showSetupInstructions() {
     print('\n═══════════════════════════════════════════════════════════');

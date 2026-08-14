@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:mod_manager_flutter/services/nte_game_detection.dart';
+import 'package:modlinq/services/nte_game_detection.dart';
 
 /// Builds the shared game files every valid install must have.
 void _writeSharedFiles(String root) {

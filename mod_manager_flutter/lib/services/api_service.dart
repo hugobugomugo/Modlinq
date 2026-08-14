@@ -1,5 +1,5 @@
 import 'dart:ui';
-import 'package:mod_manager_flutter/utils/state_providers.dart';
+import 'package:modlinq/utils/state_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/character_info.dart';

@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mod_manager_flutter/models/game_type.dart';
-import 'package:mod_manager_flutter/utils/game_roster.dart';
-import 'package:mod_manager_flutter/utils/mod_categories.dart';
-import 'package:mod_manager_flutter/utils/nte_characters.dart';
-import 'package:mod_manager_flutter/utils/ww_characters.dart';
-import 'package:mod_manager_flutter/utils/zzz_characters.dart';
+import 'package:modlinq/models/game_type.dart';
+import 'package:modlinq/utils/game_roster.dart';
+import 'package:modlinq/utils/mod_categories.dart';
+import 'package:modlinq/utils/nte_characters.dart';
+import 'package:modlinq/utils/ww_characters.dart';
+import 'package:modlinq/utils/zzz_characters.dart';
 
 void main() {
   group('roster separation', () {

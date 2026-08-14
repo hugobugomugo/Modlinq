@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:mod_manager_flutter/models/nte_mod.dart';
-import 'package:mod_manager_flutter/services/nte_mod_installer.dart';
-import 'package:mod_manager_flutter/services/nte_mod_library.dart';
+import 'package:modlinq/models/nte_mod.dart';
+import 'package:modlinq/services/nte_mod_installer.dart';
+import 'package:modlinq/services/nte_mod_library.dart';
 
 void _writeFile(String path, [String content = 'x']) {
   Directory(p.dirname(path)).createSync(recursive: true);

@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "ZZZ Менеджер модів",
+    "title": "Modlinq",
     "brand_subtitle": "Менеджер модів"
   },
   "navigation": {
@@ -263,7 +263,7 @@
     "unknown": "Невідомо"
   },
   "welcome": {
-    "title": "Ласкаво просимо до ZZZ Mod Manager!",
+    "title": "Ласкаво просимо до Modlinq!",
     "subtitle": "Давайте налаштуємо додаток для першого запуску",
     "step_of": "Крок {current} з {total}",
     "language": {

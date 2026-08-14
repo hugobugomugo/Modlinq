@@ -1,5 +1,5 @@
-name: mod_manager_flutter
-description: "Modern mod manager for Zenless Zone Zero using symbolic links."
+name: modlinq
+description: "Mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness."
 publish_to: "none"
 version: 1.0.0+1
 

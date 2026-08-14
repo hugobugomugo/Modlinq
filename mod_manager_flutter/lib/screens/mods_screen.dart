@@ -23,6 +23,7 @@ import 'components/mode_toggle_widget.dart';
 import 'components/nte_setup_panel.dart';
 import '../services/ntemm_importer.dart';
 import '../utils/mod_categories.dart';
+import '../utils/game_roster.dart';
 import '../services/config_service.dart';
 import '../services/nte_mod_manager.dart';
 import '../services/nte_mods_adapter.dart';
@@ -275,13 +276,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final configService = await ApiService.getConfigService();
       final favoriteSet = configService.favoriteMods.toSet();
       final currentGame = ref.read(selectedGameProvider);
-      final isWW = currentGame == GameType.wutheringWaves;
-      // NTE groups mods into user-defined categories, so it has no roster.
-      final gameCharacters = switch (currentGame) {
-        GameType.zzz => zzzCharacters,
-        GameType.wutheringWaves => wwCharacters,
-        GameType.nte => const <String>[],
-      };
+      final roster = GameRoster.of(currentGame);
+      final gameCharacters = roster.characterIds;
       final gameStr = currentGame.key;
 
       final Map<String, List<ModInfo>> characterMods = {};
@@ -363,18 +359,12 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
       characters.addAll(
         gameCharacters
-            .map((charId) {
-              final displayName = isWW
-                  ? getWwCharacterDisplayName(charId)
-                  : getCharacterDisplayName(charId);
-              final assetFolder = isWW ? 'assets/characters_ww' : 'assets/characters';
-              return CharacterInfo(
-                id: charId,
-                name: displayName,
-                iconPath: '$assetFolder/$charId.png',
-                skins: characterMods[charId] ?? [],
-              );
-            })
+            .map((charId) => CharacterInfo(
+                  id: charId,
+                  name: roster.displayNameOf(charId),
+                  iconPath: roster.iconPathFor(charId),
+                  skins: characterMods[charId] ?? [],
+                ))
             .where((char) => char.skins.isNotEmpty)
             .toList(),
       );
@@ -1170,10 +1160,11 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             ValueListenableBuilder<String>(
               valueListenable: selectedChar,
               builder: (context, value, _) {
+                final roster = GameRoster.of(ref.read(selectedGameProvider));
+                final options = roster.assignableIds;
+
                 return DropdownButtonFormField<String>(
-                  initialValue: zzzCharacters.contains(value)
-                      ? value
-                      : zzzCharacters.first,
+                  initialValue: options.contains(value) ? value : options.first,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -1184,7 +1175,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                     ),
                     isDense: true,
                   ),
-                  items: zzzCharacters.map((charId) {
+                  items: options.map((charId) {
                     return DropdownMenuItem(
                       value: charId,
                       child: Row(
@@ -1192,19 +1183,27 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: Image.asset(
-                              'assets/characters/$charId.png',
+                              roster.iconPathFor(charId),
                               width: 24,
                               height: 24,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Icon(
-                                Icons.person,
+                                ModCategories.isSpecial(charId)
+                                    ? Icons.folder_outlined
+                                    : Icons.person,
                                 size: 24,
                                 color: Colors.grey[600],
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(getCharacterDisplayName(charId)),
+                          Text(
+                            roster.labelFor(
+                              charId,
+                              miscLabel: loc.t('mods.categories.misc'),
+                              unknownLabel: loc.t('mods.categories.unknown'),
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -2683,7 +2682,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                                   vertical: 2,
                                 ),
                                 child: Text(
-                                  '• ${entry.key} → ${getCharacterDisplayName(entry.value)}',
+                                  '• ${entry.key} → ${GameRoster.of(ref.read(selectedGameProvider)).displayNameOf(entry.value)}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ),

@@ -5,6 +5,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
+import '../utils/game_roster.dart';
 import '../utils/zzz_characters.dart';
 import '../l10n/app_localizations.dart';
 
@@ -530,7 +531,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
             '✓',
             loc.t(
               'settings.auto_tag.characters_supported',
-              params: {'count': '${zzzCharactersData.length}'},
+              params: {
+                'count': '${GameRoster.of(ref.watch(selectedGameProvider)).characterIds.length}',
+              },
             ),
             Colors.green,
           ),
@@ -732,7 +735,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                   vertical: 2,
                                 ),
                                 child: Text(
-                                  '• ${entry.key} → ${getCharacterDisplayName(entry.value)}',
+                                  '• ${entry.key} → ${GameRoster.of(ref.read(selectedGameProvider)).displayNameOf(entry.value)}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ),

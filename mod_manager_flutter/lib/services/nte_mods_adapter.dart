@@ -1,6 +1,8 @@
 import '../models/character_info.dart';
+import '../models/game_type.dart';
 import '../models/nte_mod.dart';
 import '../utils/mod_categories.dart';
+import '../utils/game_roster.dart';
 import '../utils/nte_characters.dart';
 import 'nte_mod_manager.dart';
 
@@ -52,12 +54,14 @@ class NteModsAdapter {
     final ids = grouped.keys.toList()
       ..sort((a, b) => _labelFor(a).toLowerCase().compareTo(_labelFor(b).toLowerCase()));
 
+    final roster = GameRoster.of(GameType.nte);
+
     return [
       for (final id in ids)
         CharacterInfo(
           id: id,
           name: _labelFor(id),
-          iconPath: 'assets/characters_nte/$id.png',
+          iconPath: roster.iconPathFor(id),
           skins: grouped[id]!,
         ),
     ];

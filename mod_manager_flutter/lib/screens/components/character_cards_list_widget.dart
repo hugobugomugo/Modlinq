@@ -195,7 +195,6 @@ class _CharacterCardsListWidgetState
         if (character.id == 'favorites') {
           return;
         }
-        // Показуємо повідомлення про початок обробки
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -219,10 +218,8 @@ class _CharacterCardsListWidgetState
           );
         }
 
-        // Зберігаємо тег персонажа для моду
         widget.onCharacterTagSaved(details.data.id, character.id);
 
-        // Показуємо повідомлення про успішне збереження
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -376,7 +373,6 @@ class _CharacterCardsListWidgetState
                           ),
                       ),
                     ),
-                    // Бейдж з кількістю keybinds
                     if (character.keybinds != null &&
                         character.keybinds!.keybinds.isNotEmpty)
                       Positioned(

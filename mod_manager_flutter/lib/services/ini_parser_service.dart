@@ -2,16 +2,11 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../models/keybind_info.dart';
 
-/// Крос-платформний сервіс для парсингу INI файлів
-/// Працює як на Windows, так і на Linux
 class IniParserService {
-  /// Регулярний вираз для знаходження секцій (напр. [keySwap], [KeyUP])
   static final RegExp _sectionRegex = RegExp(r'^\[([^\]]+)\]$');
   
-  /// Регулярний вираз для знаходження пар ключ=значення
   static final RegExp _keyValueRegex = RegExp(r'^([^=]+)=(.*)$');
   
-  /// Список типових назв секцій з keybinds (case-insensitive)
   static const List<String> keybindSections = [
     'keyswap',
     'keyup',
@@ -25,8 +20,6 @@ class IniParserService {
     'hotkeys',
   ];
 
-  /// Парсить INI файл і повертає список keybinds
-  /// Шукає секції, що містять в назві ключові слова для keybinds
   Future<List<KeybindInfo>> parseIniFile(String filePath) async {
     try {
       final file = File(filePath);
@@ -40,18 +33,14 @@ class IniParserService {
       final currentKeys = <String, String>{};
 
       for (var line in lines) {
-        // Видаляємо пробіли на початку та в кінці
         line = line.trim();
 
-        // Пропускаємо порожні рядки та коментарі
         if (line.isEmpty || line.startsWith(';') || line.startsWith('#')) {
           continue;
         }
 
-        // Перевіряємо чи це секція
         final sectionMatch = _sectionRegex.firstMatch(line);
         if (sectionMatch != null) {
-          // Зберігаємо попередню секцію якщо вона була keybind-секцією
           if (currentSection != null && _isKeybindSection(currentSection)) {
             if (currentKeys.isNotEmpty) {
               keybinds.add(KeybindInfo(
@@ -62,12 +51,10 @@ class IniParserService {
             }
           }
 
-          // Починаємо нову секцію
           currentSection = sectionMatch.group(1);
           continue;
         }
 
-        // Перевіряємо чи це пара ключ=значення
         final keyValueMatch = _keyValueRegex.firstMatch(line);
         if (keyValueMatch != null && currentSection != null) {
           final key = keyValueMatch.group(1)?.trim() ?? '';
@@ -79,7 +66,6 @@ class IniParserService {
         }
       }
 
-      // Зберігаємо останню секцію якщо вона була keybind-секцією
       if (currentSection != null && _isKeybindSection(currentSection)) {
         if (currentKeys.isNotEmpty) {
           keybinds.add(KeybindInfo(
@@ -96,19 +82,14 @@ class IniParserService {
     }
   }
 
-  /// Перевіряє чи є секція keybind-секцією
-  /// Ловить всі секції що починаються з "Key" або містять ключові слова
   bool _isKeybindSection(String sectionName) {
     final lowerSection = sectionName.toLowerCase();
-    // Перевіряємо чи секція починається з "key" (наприклад [KeyHair], [KeyLegs])
     if (lowerSection.startsWith('key')) {
       return true;
     }
-    // Або містить ключові слова
     return keybindSections.any((keyword) => lowerSection.contains(keyword));
   }
 
-  /// Шукає всі INI файли в вказаній директорії (рекурсивно)
   Future<List<String>> findIniFiles(String directoryPath) async {
     try {
       final dir = Directory(directoryPath);
@@ -134,8 +115,6 @@ class IniParserService {
     }
   }
 
-  /// Парсить всі INI файли в директорії персонажа
-  /// Повертає об'єкт CharacterKeybinds з усіма знайденими keybinds
   Future<CharacterKeybinds?> parseCharacterDirectory(
     String characterId,
     String directoryPath,
@@ -168,8 +147,6 @@ class IniParserService {
     }
   }
 
-  /// Парсить INI файли для всіх персонажів в savemods
-  /// Повертає мапу characterId -> CharacterKeybinds
   Future<Map<String, CharacterKeybinds>> parseAllCharacters(
     String saveModsPath,
   ) async {
@@ -187,7 +164,6 @@ class IniParserService {
         if (entity is Directory) {
           final characterId = path.basename(entity.path);
           
-          // Пропускаємо системні папки
           if (characterId.startsWith('.') || characterId.startsWith('__')) {
             continue;
           }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/keybind_info.dart';
 
-/// Віджет для відображення keybinds персонажа
-/// Показує всі знайдені keybinds з INI файлів
 class KeybindsWidget extends StatefulWidget {
   final CharacterKeybinds? keybinds;
   final double scaleFactor;
@@ -26,7 +24,6 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
       return const SizedBox.shrink();
     }
 
-    // Фільтруємо тільки keybinds з key значенням
     final validKeybinds = widget.keybinds!.keybinds
         .where((kb) => kb.keyValue != null && kb.keyValue!.isNotEmpty)
         .toList();
@@ -51,7 +48,6 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок з кнопкою розгортання
           InkWell(
             onTap: () => setState(() => _isExpanded = !_isExpanded),
             borderRadius: BorderRadius.circular(8 * widget.scaleFactor),
@@ -102,7 +98,6 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
               ),
             ),
           ),
-          // Список keybinds (розгортається)
           if (_isExpanded)
             Padding(
               padding: EdgeInsets.only(
@@ -183,8 +178,6 @@ class _KeybindsWidgetState extends State<KeybindsWidget> {
   }
 }
 
-/// Компактний віджет для відображення кількості keybinds
-/// Показується як значок з числом
 class KeybindsBadge extends StatelessWidget {
   final CharacterKeybinds? keybinds;
   final double scaleFactor;

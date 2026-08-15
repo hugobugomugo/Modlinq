@@ -928,7 +928,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           received += chunk.length;
           sink.add(chunk);
           
-          // Оновлювати прогрес не частіше ніж кожні 256 KB
           if (received - lastProgressUpdate >= progressUpdateThreshold || received == total) {
             if (total > 0) {
               progressNotifier.value = min(received / total, 1);
@@ -990,7 +989,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     }
 
     try {
-      // Використовуємо ArchiveService для розархівування
       final extractionResult = await ArchiveService.extractArchive(
         archiveFile: archiveFile,
       );

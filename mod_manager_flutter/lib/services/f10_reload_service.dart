@@ -1,10 +1,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
-/// Сервіс для автоматичної відправки F10 для перезавантаження модів у 3DMigoto на Linux
 class F10ReloadService {
   
-  /// Перевіряє чи запущена гра (Zenless Zone Zero через Wine/Proton)
   Future<List<String>> _findGameProcesses() async {
     try {
       final result = await Process.run('ps', ['aux']);
@@ -29,17 +27,14 @@ class F10ReloadService {
     }
   }
 
-  /// Відправляє F10 через xdotool (якщо доступний)
   Future<bool> _sendF10ViaXdotool() async {
     try {
-      // Перевіряємо чи встановлений xdotool
       final checkResult = await Process.run('which', ['xdotool']);
       if (checkResult.exitCode != 0) {
         print('F10ReloadService: xdotool не встановлений');
         return false;
       }
 
-      // Знаходимо вікно гри
       String? windowId;
       final windowNames = ['Zenless', 'ZZZ', 'zenless'];
       
@@ -61,16 +56,13 @@ class F10ReloadService {
 
       if (windowId == null) {
         print('F10ReloadService: Вікно гри не знайдено через xdotool');
-        // Спробуємо відправити до активного вікна
         await Process.run('xdotool', ['key', 'F10']);
         return true;
       }
 
-      // Активуємо вікно гри
       await Process.run('xdotool', ['windowactivate', windowId]);
       await Future.delayed(const Duration(milliseconds: 200));
 
-      // Відправляємо F10 до конкретного вікна
       final keyResult = await Process.run('xdotool', [
         'key', '--window', windowId, 'F10'
       ]);
@@ -88,10 +80,8 @@ class F10ReloadService {
     }
   }
 
-  /// Намагається сфокусуватися на вікні гри (для Wayland)
   Future<void> _focusGameWindow() async {
     try {
-      // Спробуємо через wmctrl якщо доступний
       final wmctrlCheck = await Process.run('which', ['wmctrl']);
       if (wmctrlCheck.exitCode == 0) {
         final windowNames = ['Zenless', 'ZZZ', 'zenless'];
@@ -106,7 +96,6 @@ class F10ReloadService {
         }
       }
 
-      // Альтернативний метод через xdotool навіть на Wayland (якщо працює)
       final xdotoolCheck = await Process.run('which', ['xdotool']);
       if (xdotoolCheck.exitCode == 0) {
         final windowNames = ['Zenless', 'ZZZ', 'zenless'];
@@ -132,23 +121,18 @@ class F10ReloadService {
     }
   }
 
-  /// Відправляє F10 через ydotool (Wayland альтернатива)
   Future<bool> _sendF10ViaYdotool() async {
     try {
-      // Перевіряємо чи встановлений ydotool
       final checkResult = await Process.run('which', ['ydotool']);
       if (checkResult.exitCode != 0) {
         print('F10ReloadService: ydotool не встановлений');
         return false;
       }
 
-      // Спробуємо активувати вікно гри спочатку
       await _focusGameWindow();
       
-      // Невелика затримка для фокусування
       await Future.delayed(const Duration(milliseconds: 200));
 
-      // Відправляємо F10 кілька разів для надійності
       for (int i = 0; i < 2; i++) {
         final keyResult = await Process.run('ydotool', [
           'key', '67:1', '67:0'  // F10 key code для ydotool
@@ -171,17 +155,14 @@ class F10ReloadService {
     }
   }
 
-  /// Створює сигнальний файл для 3DMigoto
   Future<bool> _createReloadSignalFile(String modsPath) async {
     try {
       final signalPath = path.join(modsPath, '.reload_signal');
       final timestampPath = path.join(modsPath, '.mod_timestamp');
       
-      // Створюємо сигнальний файл
       final signalFile = File(signalPath);
       await signalFile.writeAsString(DateTime.now().millisecondsSinceEpoch.toString());
       
-      // Оновлюємо timestamp файл
       final timestampFile = File(timestampPath);
       await timestampFile.writeAsString(DateTime.now().millisecondsSinceEpoch.toString());
       
@@ -193,7 +174,6 @@ class F10ReloadService {
     }
   }
 
-  /// Створює INI файл з командою перезавантаження для 3DMigoto
   Future<bool> _createReloadIniFile(String modsPath) async {
     try {
       final iniPath = path.join(modsPath, 'mod_reload_trigger.ini');
@@ -230,7 +210,6 @@ endif
       
       print('F10ReloadService: Створено INI файл: $iniPath');
       
-      // Видаляємо файл через 10 секунд
       Future.delayed(const Duration(seconds: 10), () async {
         try {
           if (await file.exists()) {
@@ -249,17 +228,14 @@ endif
     }
   }
 
-  /// Намагається перезапустити Wine процес (як крайній засіб)
   Future<bool> _restartWineProcess() async {
     try {
-      // Знаходимо Wine процес гри
       final processes = await _findGameProcesses();
       if (processes.isEmpty) {
         print('F10ReloadService: Процеси Wine гри не знайдені');
         return false;
       }
 
-      // Відправляємо SIGUSR1 сигнал (деякі програми його використовують для перезавантаження)
       for (final processLine in processes) {
         final parts = processLine.split(RegExp(r'\s+'));
         if (parts.length > 1) {
@@ -280,7 +256,6 @@ endif
     }
   }
 
-  /// Перевіряє тип дисплейного сервера (X11 чи Wayland)
   String _getDisplayServer() {
     final sessionType = Platform.environment['XDG_SESSION_TYPE'];
     final waylandDisplay = Platform.environment['WAYLAND_DISPLAY'];
@@ -295,7 +270,6 @@ endif
     return 'unknown';
   }
 
-  /// Використовує Python скрипт як резервний метод
   Future<bool> _callPythonScript(String modsPath) async {
     try {
       final scriptPath = path.join(
@@ -325,7 +299,6 @@ endif
     }
   }
 
-  /// Основний метод для перезавантаження модів
   Future<bool> reloadMods(String? modsPath) async {
     if (modsPath == null || modsPath.isEmpty) {
       print('F10ReloadService: Не вказаний шлях до модів');
@@ -340,17 +313,14 @@ endif
 
     bool success = false;
 
-    // Метод 1: Створення сигнальних файлів (найнадійніший)
     if (await _createReloadSignalFile(modsPath)) {
       success = true;
     }
 
-    // Метод 2: Створення INI файлу з командами перезавантаження
     if (await _createReloadIniFile(modsPath)) {
       success = true;
     }
 
-    // Метод 3: Відправка F10 в залежності від дисплейного сервера
     if (displayServer == 'x11') {
       if (await _sendF10ViaXdotool()) {
         success = true;
@@ -361,14 +331,12 @@ endif
       }
     }
 
-    // Метод 4: Спроба через обидва інструменти (резервний)
     if (!success) {
       if (await _sendF10ViaXdotool() || await _sendF10ViaYdotool()) {
         success = true;
       }
     }
 
-    // Метод 5: Використання Python скрипту (крайній резерв)
     if (!success) {
       print('F10ReloadService: Використовуємо Python скрипт як резервний метод...');
       if (await _callPythonScript(modsPath)) {
@@ -385,7 +353,6 @@ endif
     return success;
   }
 
-  /// Встановлює необхідні залежності для роботи сервісу
   Future<void> installDependencies() async {
     print('F10ReloadService: Перевірка залежностей...');
     
@@ -414,7 +381,6 @@ endif
     }
   }
 
-  /// Показує інструкції для налаштування
   void showSetupInstructions() {
     print('F10ReloadService: Інструкції з налаштування:');
     print('');

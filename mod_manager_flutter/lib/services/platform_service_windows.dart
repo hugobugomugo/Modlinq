@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/path_helper.dart';
 import 'platform_service.dart';
 
-/// Windows-специфічна реалізація PlatformService
 class WindowsPlatformService implements PlatformService {
   
   @override
@@ -15,7 +14,6 @@ class WindowsPlatformService implements PlatformService {
     print('WindowsPlatformService: Відправка F10...');
     
     try {
-      // Знаходимо вікно гри через FindWindow
       final windowNames = [
         'Zenless Zone Zero',
         'ZenlessZoneZero',
@@ -39,26 +37,20 @@ class WindowsPlatformService implements PlatformService {
       
       if (hwnd == 0) {
         print('WindowsPlatformService: Вікно гри не знайдено');
-        // Спробуємо відправити до активного вікна
         return await _sendF10ToForegroundWindow();
       }
       
-      // Перевіряємо чи вікно видиме
       final isVisible = IsWindowVisible(hwnd);
       if (isVisible == FALSE) {
         print('WindowsPlatformService: Вікно гри не видиме');
         return false;
       }
       
-      // Активуємо вікно
       SetForegroundWindow(hwnd);
       await Future.delayed(const Duration(milliseconds: 100));
       
-      // Відправляємо F10 (VK_F10 = 0x79)
-      // Натискання клавіші
       PostMessage(hwnd, WM_KEYDOWN, VK_F10, 0);
       await Future.delayed(const Duration(milliseconds: 50));
-      // Відпускання клавіші
       PostMessage(hwnd, WM_KEYUP, VK_F10, 0);
       
       print('WindowsPlatformService: F10 успішно відправлено');
@@ -74,12 +66,10 @@ class WindowsPlatformService implements PlatformService {
     try {
       print('WindowsPlatformService: Створення link: $linkPath -> $sourcePath');
       
-      // Спочатку видаляємо якщо вже існує
       if (await Directory(linkPath).exists() || await File(linkPath).exists()) {
         await removeModLink(linkPath);
       }
       
-      // Спроба 1: Звичайний symbolic link (потребує Developer Mode або прав адміна)
       try {
         final link = Link(linkPath);
         await link.create(sourcePath, recursive: false);
@@ -90,7 +80,6 @@ class WindowsPlatformService implements PlatformService {
         print('WindowsPlatformService: Спроба створити Junction...');
       }
       
-      // Спроба 2: Directory Junction (не потребує прав адміна)
       final result = await Process.run(
         'cmd',
         ['/c', 'mklink', '/J', linkPath, sourcePath],
@@ -113,10 +102,8 @@ class WindowsPlatformService implements PlatformService {
   @override
   Future<bool> removeModLink(String linkPath) async {
     try {
-      // Перевіряємо чи це link/junction
       final isLink = await isModLink(linkPath);
       if (!isLink) {
-        // Можливо це звичайна директорія, видаляємо її
         final dir = Directory(linkPath);
         if (await dir.exists()) {
           await dir.delete(recursive: false);
@@ -126,7 +113,6 @@ class WindowsPlatformService implements PlatformService {
         return false;
       }
       
-      // Для junction/symlink використовуємо Link
       final link = Link(linkPath);
       if (await link.exists()) {
         await link.delete();
@@ -144,11 +130,9 @@ class WindowsPlatformService implements PlatformService {
   @override
   Future<bool> isModLink(String linkPath) async {
     try {
-      // Перевіряємо через FileSystemEntity.isLink
       final isLink = await FileSystemEntity.isLink(linkPath);
       if (isLink) return true;
       
-      // Додатково перевіряємо через Windows API для junction
       return await _isJunction(linkPath);
     } catch (e) {
       return false;
@@ -180,9 +164,7 @@ class WindowsPlatformService implements PlatformService {
   Future<bool> checkDependencies() async {
     print('WindowsPlatformService: Перевірка залежностей...');
     
-    // На Windows всі необхідні API вже є в системі
     try {
-      // Перевіряємо чи можемо викликати Windows API
       final hwnd = GetForegroundWindow();
       if (hwnd != 0) {
         print('WindowsPlatformService: Windows API доступний ✓');
@@ -200,7 +182,6 @@ class WindowsPlatformService implements PlatformService {
   @override
   Future<List<String>> findGameProcesses() async {
     try {
-      // Використовуємо tasklist для пошуку процесів
       final result = await Process.run('tasklist', ['/FI', 'IMAGENAME eq ZenlessZoneZero.exe']);
       final processes = <String>[];
       
@@ -224,7 +205,6 @@ class WindowsPlatformService implements PlatformService {
   
   @override
   String getDisplayServerType() {
-    // Windows завжди використовує DWM (Desktop Window Manager)
     return 'windows-dwm';
   }
   
@@ -262,11 +242,9 @@ class WindowsPlatformService implements PlatformService {
     }
   }
   
-  // ===== Приватні методи =====
   
   Future<bool> _sendF10ToForegroundWindow() async {
     try {
-      // Відправляємо F10 до активного вікна
       final hwnd = GetForegroundWindow();
       if (hwnd == 0) {
         print('WindowsPlatformService: Не вдалося отримати активне вікно');
@@ -287,14 +265,12 @@ class WindowsPlatformService implements PlatformService {
   
   Future<bool> _isJunction(String dirPath) async {
     try {
-      // Використовуємо cmd для перевірки junction
       final result = await Process.run(
         'cmd',
         ['/c', 'dir', '/AL', dirPath],
         runInShell: true,
       );
       
-      // Якщо це junction, у виводі буде "<JUNCTION>"
       return result.stdout.toString().contains('JUNCTION');
     } catch (e) {
       return false;

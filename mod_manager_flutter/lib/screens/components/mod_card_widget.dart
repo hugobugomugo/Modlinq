@@ -62,7 +62,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Зображення моду з новим стилем
               Expanded(
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
@@ -115,7 +114,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                             ),
                           ),
                         
-                        // Градієнт оверлей для кращої читабельності
                         if (widget.mod.imagePath != null && File(widget.mod.imagePath!).existsSync())
                           Container(
                             decoration: BoxDecoration(
@@ -136,7 +134,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Індикатор keybinds
                               if (widget.mod.keybinds != null && widget.mod.keybinds!.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(right: 6),
@@ -185,7 +182,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                                     ),
                                   ),
                                 ),
-                              // Кнопка favorite
                               Material(
                                 color: Colors.black.withValues(alpha: 0.35),
                                 borderRadius: BorderRadius.circular(12),
@@ -208,7 +204,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                           ),
                         ),
                         
-                        // Стильний статус індикатор
                         Positioned(
                           top: 12,
                           right: 12,
@@ -240,7 +235,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                           ),
                         ),
                         
-                        // Тег персонажа з новим стилем
                         if (widget.modCharacterTags.containsKey(widget.mod.id))
                           Positioned(
                             top: 12,
@@ -276,7 +270,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                 ),
               ),
               
-              // Назва моду з новим стилем
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -310,7 +303,6 @@ class _ModCardWidgetState extends State<ModCardWidget> {
     );
   }
 
-  // Допоміжні методи для стилізації
   LinearGradient _getModCardGradient(ModInfo mod, bool isDarkMode, bool isHovered) {
     if (mod.isActive) {
       return LinearGradient(

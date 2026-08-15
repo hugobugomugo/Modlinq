@@ -3,22 +3,18 @@ import 'platform_service.dart';
 import 'platform_service_linux.dart';
 import 'platform_service_windows.dart';
 
-/// Factory для створення платформно-специфічного сервісу
 class PlatformServiceFactory {
   static PlatformService? _instance;
   
-  /// Отримати singleton instance платформного сервісу
   static PlatformService getInstance() {
     _instance ??= _createService();
     return _instance!;
   }
   
-  /// Створити новий instance (для тестування)
   static PlatformService createNew() {
     return _createService();
   }
   
-  /// Скинути singleton (для тестування)
   static void reset() {
     _instance = null;
   }

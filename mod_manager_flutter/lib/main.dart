@@ -118,7 +118,6 @@ class _MyAppState extends ConsumerState<MyApp> {
             ? const Color(0xFF0F0F0F)
             : const Color(0xFFF5F5F5),
         cardColor: isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
-        // Покращена кольорова схема
         primarySwatch: MaterialColor(0xFF0EA5E9, <int, Color>{
           50: const Color(0xFFE0F7FA),
           100: const Color(0xFFB3ECF2),
@@ -131,9 +130,7 @@ class _MyAppState extends ConsumerState<MyApp> {
           800: const Color(0xFF0870A1),
           900: const Color(0xFF064E89),
         }),
-        // Покращені кольори для темної теми
         brightness: isDarkMode ? Brightness.dark : Brightness.light,
-        // Покращені кольори для карток
         cardTheme: CardThemeData(
           elevation: isDarkMode ? 8 : 4,
           shadowColor: isDarkMode
@@ -143,7 +140,6 @@ class _MyAppState extends ConsumerState<MyApp> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        // Покращені кольори для кнопок
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             elevation: 4,
@@ -153,7 +149,6 @@ class _MyAppState extends ConsumerState<MyApp> {
             ),
           ),
         ),
-        // Покращені кольори для полів вводу
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -245,7 +240,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
 
   @override
   void onWindowClose() async {
-    // Швидко закриваємо без очікування
     await windowManager.destroy();
     exit(0);
   }

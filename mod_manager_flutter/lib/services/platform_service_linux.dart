@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/path_helper.dart';
 import 'platform_service.dart';
 
-/// Linux-специфічна реалізація PlatformService
 class LinuxPlatformService implements PlatformService {
   
   @override
@@ -16,7 +15,6 @@ class LinuxPlatformService implements PlatformService {
     
     bool success = false;
     
-    // Метод 1: Відправка F10 через відповідний інструмент
     if (displayServer == 'x11') {
       if (await _sendF10ViaXdotool()) {
         success = true;
@@ -27,7 +25,6 @@ class LinuxPlatformService implements PlatformService {
       }
     }
     
-    // Метод 2: Спроба через обидва інструменти (резервний)
     if (!success) {
       if (await _sendF10ViaXdotool() || await _sendF10ViaYdotool()) {
         success = true;
@@ -46,10 +43,8 @@ class LinuxPlatformService implements PlatformService {
   @override
   Future<bool> createModLink(String sourcePath, String linkPath) async {
     try {
-      // На Linux використовуємо звичайні symbolic links
       final link = Link(linkPath);
       
-      // Видаляємо якщо вже існує
       if (await link.exists() || await FileSystemEntity.isLink(linkPath)) {
         await removeModLink(linkPath);
       }
@@ -251,7 +246,6 @@ class LinuxPlatformService implements PlatformService {
     }
   }
   
-  // ===== Приватні методи =====
   
   Future<bool> _sendF10ViaXdotool() async {
     try {

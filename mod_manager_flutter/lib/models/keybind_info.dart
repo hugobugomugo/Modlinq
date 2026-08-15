@@ -1,4 +1,3 @@
-/// Модель для зберігання інформації про keybind
 class KeybindInfo {
   final String section; // Назва секції (напр. keySwap, KeyUP)
   final Map<String, String> keys; // Ключі та їх значення
@@ -8,10 +7,8 @@ class KeybindInfo {
     required this.keys,
   });
 
-  /// Отримує значення клавіші з секції (тільки поле 'key')
   String? get keyValue => keys['key'];
 
-  /// Отримує красиву назву секції (без префіксу Key)
   String get displayName {
     if (section.toLowerCase().startsWith('key')) {
       return section.substring(3);
@@ -44,7 +41,6 @@ class KeybindInfo {
   }
 }
 
-/// Модель для зберігання всіх keybinds з INI файлу
 class CharacterKeybinds {
   final String characterId;
   final List<KeybindInfo> keybinds;

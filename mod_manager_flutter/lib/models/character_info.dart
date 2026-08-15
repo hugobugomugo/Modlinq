@@ -1,6 +1,5 @@
 import 'keybind_info.dart';
 
-/// Модель даних для персонажа
 class CharacterInfo {
   final String id;
   final String name;
@@ -33,7 +32,6 @@ class CharacterInfo {
   }
 }
 
-/// Модель даних для скіна персонажа
 class ModInfo {
   final String id;
   final String name;

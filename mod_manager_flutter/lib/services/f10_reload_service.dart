@@ -19,10 +19,10 @@ class F10ReloadService {
         }
       }
       
-      print('F10ReloadService: Знайдено процесів гри: ${processes.length}');
+      print('F10ReloadService: found game processes: ${processes.length}');
       return processes;
     } catch (e) {
-      print('F10ReloadService: Помилка пошуку процесів: $e');
+      print('F10ReloadService: process search failed: $e');
       return [];
     }
   }
@@ -31,7 +31,7 @@ class F10ReloadService {
     try {
       final checkResult = await Process.run('which', ['xdotool']);
       if (checkResult.exitCode != 0) {
-        print('F10ReloadService: xdotool не встановлений');
+        print('F10ReloadService: xdotool not installed');
         return false;
       }
 
@@ -46,7 +46,7 @@ class F10ReloadService {
           
           if (windowResult.exitCode == 0 && windowResult.stdout.toString().trim().isNotEmpty) {
             windowId = windowResult.stdout.toString().trim().split('\n').first;
-            print('F10ReloadService: Знайдено вікно гри: $name (ID: $windowId)');
+            print('F10ReloadService: found game window: $name (ID: $windowId)');
             break;
           }
         } catch (e) {
@@ -55,7 +55,7 @@ class F10ReloadService {
       }
 
       if (windowId == null) {
-        print('F10ReloadService: Вікно гри не знайдено через xdotool');
+        print('F10ReloadService: game window not found via xdotool');
         await Process.run('xdotool', ['key', 'F10']);
         return true;
       }
@@ -68,14 +68,14 @@ class F10ReloadService {
       ]);
 
       if (keyResult.exitCode == 0) {
-        print('F10ReloadService: F10 успішно відправлено через xdotool');
+        print('F10ReloadService: f10 sent via xdotool');
         return true;
       } else {
-        print('F10ReloadService: Помилка відправки F10 через xdotool');
+        print('F10ReloadService: f10 send via xdotool failed');
         return false;
       }
     } catch (e) {
-      print('F10ReloadService: Помилка xdotool: $e');
+      print('F10ReloadService: xdotool error: $e');
       return false;
     }
   }
@@ -88,7 +88,7 @@ class F10ReloadService {
         for (final name in windowNames) {
           try {
             await Process.run('wmctrl', ['-a', name]);
-            print('F10ReloadService: Активовано вікно через wmctrl: $name');
+            print('F10ReloadService: window activated via wmctrl: $name');
             return;
           } catch (e) {
             continue;
@@ -108,7 +108,7 @@ class F10ReloadService {
             if (result.exitCode == 0 && result.stdout.toString().trim().isNotEmpty) {
               final windowId = result.stdout.toString().trim().split('\n').first;
               await Process.run('xdotool', ['windowactivate', windowId]);
-              print('F10ReloadService: Активовано вікно через xdotool: $name');
+              print('F10ReloadService: window activated via xdotool: $name');
               return;
             }
           } catch (e) {
@@ -117,7 +117,7 @@ class F10ReloadService {
         }
       }
     } catch (e) {
-      print('F10ReloadService: Не вдалося активувати вікно гри: $e');
+      print('F10ReloadService: could not activate game window: $e');
     }
   }
 
@@ -125,7 +125,7 @@ class F10ReloadService {
     try {
       final checkResult = await Process.run('which', ['ydotool']);
       if (checkResult.exitCode != 0) {
-        print('F10ReloadService: ydotool не встановлений');
+        print('F10ReloadService: ydotool not installed');
         return false;
       }
 
@@ -135,11 +135,11 @@ class F10ReloadService {
 
       for (int i = 0; i < 2; i++) {
         final keyResult = await Process.run('ydotool', [
-          'key', '67:1', '67:0'  // F10 key code для ydotool
+          'key', '67:1', '67:0'
         ]);
         
         if (keyResult.exitCode != 0) {
-          print('F10ReloadService: Помилка відправки F10 через ydotool (спроба ${i + 1})');
+          print('F10ReloadService: f10 send via ydotool failed (attempt ${i + 1})');
         }
         
         if (i < 1) {
@@ -147,10 +147,10 @@ class F10ReloadService {
         }
       }
 
-      print('F10ReloadService: F10 успішно відправлено через ydotool');
+      print('F10ReloadService: f10 sent via ydotool');
       return true;
     } catch (e) {
-      print('F10ReloadService: Помилка ydotool: $e');
+      print('F10ReloadService: ydotool error: $e');
       return false;
     }
   }
@@ -166,10 +166,10 @@ class F10ReloadService {
       final timestampFile = File(timestampPath);
       await timestampFile.writeAsString(DateTime.now().millisecondsSinceEpoch.toString());
       
-      print('F10ReloadService: Створено сигнальні файли');
+      print('F10ReloadService: signal files created');
       return true;
     } catch (e) {
-      print('F10ReloadService: Помилка створення сигнальних файлів: $e');
+      print('F10ReloadService: signal file creation failed: $e');
       return false;
     }
   }
@@ -180,50 +180,50 @@ class F10ReloadService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       
       final iniContent = '''
-; Автоматично створений файл для перезавантаження модів
-; Створено: ${DateTime.now().toIso8601String()}
+; auto-generated file for mod reload
+; created: ${DateTime.now().toIso8601String()}
 
 [Constants]
-; Тригер для перезавантаження модів
+; mod reload trigger
 \$mod_reload_timestamp = $timestamp
 \$force_reload = 1
 
 [Present]
-; Перезавантажуємо конфігурацію при наступному кадрі
+; reload config on next frame
 post run = CommandListForceReload
 
 [CommandListForceReload]
-; Примусове перезавантаження конфігурації та модів
+; force reload of config and mods
 if \$force_reload == 1
-    ; Скидаємо тригер
+    ; reset trigger
     \$force_reload = 0
-    ; Перезавантажуємо конфігурацію (еквівалент F10)
+    ; reload config (f10 equivalent)
     run = BuiltInCommandListReloadConfig
 endif
 
-; Видаляємо цей файл через декілька секунд
-; (це потрібно зробити зовнішньо, оскільки 3DMigoto не може видаляти файли)
+; this file is deleted after a few seconds
+; (done externally, 3dmigoto cannot delete files)
 ''';
 
       final file = File(iniPath);
       await file.writeAsString(iniContent);
       
-      print('F10ReloadService: Створено INI файл: $iniPath');
+      print('F10ReloadService: ini file created: $iniPath');
       
       Future.delayed(const Duration(seconds: 10), () async {
         try {
           if (await file.exists()) {
             await file.delete();
-            print('F10ReloadService: Видалено тимчасовий INI файл');
+            print('F10ReloadService: temp ini file deleted');
           }
         } catch (e) {
-          print('F10ReloadService: Помилка видалення INI файлу: $e');
+          print('F10ReloadService: ini file delete failed: $e');
         }
       });
       
       return true;
     } catch (e) {
-      print('F10ReloadService: Помилка створення INI файлу: $e');
+      print('F10ReloadService: ini file creation failed: $e');
       return false;
     }
   }
@@ -232,7 +232,7 @@ endif
     try {
       final processes = await _findGameProcesses();
       if (processes.isEmpty) {
-        print('F10ReloadService: Процеси Wine гри не знайдені');
+        print('F10ReloadService: wine game processes not found');
         return false;
       }
 
@@ -242,16 +242,16 @@ endif
           final pid = parts[1];
           try {
             await Process.run('kill', ['-USR1', pid]);
-            print('F10ReloadService: Відправлено SIGUSR1 до процесу $pid');
+            print('F10ReloadService: sent sigusr1 to pid $pid');
           } catch (e) {
-            print('F10ReloadService: Помилка відправки сигналу до $pid: $e');
+            print('F10ReloadService: signal send failed to $pid: $e');
           }
         }
       }
       
       return true;
     } catch (e) {
-      print('F10ReloadService: Помилка перезапуску Wine процесу: $e');
+      print('F10ReloadService: wine process restart failed: $e');
       return false;
     }
   }
@@ -280,36 +280,36 @@ endif
       
       final scriptFile = File(scriptPath);
       if (!await scriptFile.exists()) {
-        print('F10ReloadService: Python скрипт не знайдено: $scriptPath');
+        print('F10ReloadService: python script not found: $scriptPath');
         return false;
       }
 
       final result = await Process.run('python3', [scriptPath, modsPath]);
       
       if (result.exitCode == 0) {
-        print('F10ReloadService: Python скрипт виконано успішно');
+        print('F10ReloadService: python script ok');
         return true;
       } else {
-        print('F10ReloadService: Python скрипт завершився з помилкою: ${result.stderr}');
+        print('F10ReloadService: python script failed: ${result.stderr}');
         return false;
       }
     } catch (e) {
-      print('F10ReloadService: Помилка виконання Python скрипту: $e');
+      print('F10ReloadService: python script execution failed: $e');
       return false;
     }
   }
 
   Future<bool> reloadMods(String? modsPath) async {
     if (modsPath == null || modsPath.isEmpty) {
-      print('F10ReloadService: Не вказаний шлях до модів');
+      print('F10ReloadService: mods path not set');
       return false;
     }
 
-    print('F10ReloadService: Починаємо перезавантаження модів на Linux...');
-    print('F10ReloadService: Шлях до модів: $modsPath');
+    print('F10ReloadService: starting mod reload on linux...');
+    print('F10ReloadService: mods path: $modsPath');
     
     final displayServer = _getDisplayServer();
-    print('F10ReloadService: Виявлений дисплейний сервер: $displayServer');
+    print('F10ReloadService: display server: $displayServer');
 
     bool success = false;
 
@@ -338,64 +338,64 @@ endif
     }
 
     if (!success) {
-      print('F10ReloadService: Використовуємо Python скрипт як резервний метод...');
+      print('F10ReloadService: falling back to python script...');
       if (await _callPythonScript(modsPath)) {
         success = true;
       }
     }
 
     if (success) {
-      print('F10ReloadService: Команди перезавантаження модів відправлені');
+      print('F10ReloadService: mod reload commands sent');
     } else {
-      print('F10ReloadService: Не вдалося відправити команди перезавантаження');
+      print('F10ReloadService: could not send reload commands');
     }
 
     return success;
   }
 
   Future<void> installDependencies() async {
-    print('F10ReloadService: Перевірка залежностей...');
+    print('F10ReloadService: checking dependencies...');
     
     final displayServer = _getDisplayServer();
     
     if (displayServer == 'x11') {
       final result = await Process.run('which', ['xdotool']);
       if (result.exitCode != 0) {
-        print('F10ReloadService: Рекомендується встановити xdotool:');
+        print('F10ReloadService: recommended: install xdotool:');
         print('  Ubuntu/Debian: sudo apt install xdotool');
         print('  Arch: sudo pacman -S xdotool');
         print('  Fedora: sudo dnf install xdotool');
       } else {
-        print('F10ReloadService: xdotool встановлений ✓');
+        print('F10ReloadService: xdotool installed');
       }
     } else if (displayServer == 'wayland') {
       final result = await Process.run('which', ['ydotool']);
       if (result.exitCode != 0) {
-        print('F10ReloadService: Рекомендується встановити ydotool:');
+        print('F10ReloadService: recommended: install ydotool:');
         print('  Ubuntu/Debian: sudo apt install ydotool');
         print('  Arch: yay -S ydotool');
         print('  Fedora: sudo dnf install ydotool');
       } else {
-        print('F10ReloadService: ydotool встановлений ✓');
+        print('F10ReloadService: ydotool installed');
       }
     }
   }
 
   void showSetupInstructions() {
-    print('F10ReloadService: Інструкції з налаштування:');
+    print('F10ReloadService: setup instructions:');
     print('');
-    print('1. Переконайтеся, що 3DMigoto/XXMI правильно налаштований');
-    print('2. У d3dx.ini має бути рядок: reload_fixes = no_modifiers VK_F10');
-    print('3. Встановіть відповідні інструменти:');
-    print('   - Для X11: xdotool');
-    print('   - Для Wayland: ydotool + wmctrl (рекомендовано)');
-    print('4. Для Wayland, переконайтеся що ydotool має права:');
+    print('1. make sure 3dmigoto/xxmi is configured correctly');
+    print('2. d3dx.ini needs the line: reload_fixes = no_modifiers VK_F10');
+    print('3. install the matching tools:');
+    print('   - x11: xdotool');
+    print('   - wayland: ydotool + wmctrl (recommended)');
+    print('4. on wayland make sure ydotool has permissions:');
     print('   sudo usermod -a -G input \$USER');
     print('   sudo systemctl enable --now ydotool.service');
-    print('5. Запустіть гру через Wine/Proton/XXMI Launcher');
-    print('6. Використовуйте цей сервіс для автоматичного перезавантаження модів');
+    print('5. launch the game via wine/proton/xxmi launcher');
+    print('6. use this service for automatic mod reload');
     print('');
-    print('ВАЖЛИВО: Вікно гри має бути видимим (не згорнутим) для ydotool!');
+    print('important: game window must be visible (not minimized) for ydotool');
     print('');
   }
 }

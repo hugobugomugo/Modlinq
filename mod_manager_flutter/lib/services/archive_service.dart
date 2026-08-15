@@ -37,7 +37,7 @@ class ArchiveService {
     Directory? destinationDir,
   }) async {
     try {
-      print('ArchiveService: Розархівування ${archiveFile.path}');
+      print('ArchiveService: extracting ${archiveFile.path}');
 
       final tempExtractDir = destinationDir ??
           await Directory.systemTemp.createTemp('zzz_archive_extract_');
@@ -47,18 +47,18 @@ class ArchiveService {
       String? extractionError;
 
       if (extension == '.zip') {
-        print('ArchiveService: ZIP архів');
+        print('ArchiveService: zip archive');
         isExtracted = await _extractZip(archiveFile, tempExtractDir);
       } else if (extension == '.rar' || extension == '.7z') {
-        print('ArchiveService: RAR/7Z архів');
+        print('ArchiveService: rar/7z archive');
         final result = await _extractWith7Zip(archiveFile, tempExtractDir);
         isExtracted = result.success;
         extractionError = result.error;
       }
 
       if (!isExtracted) {
-        final error = extractionError ?? 'Формат архіву не підтримується';
-        print('ArchiveService: Помилка: $error');
+        final error = extractionError ?? 'archive format not supported';
+        print('ArchiveService: error: $error');
         return ArchiveExtractionResult.failure(error);
       }
 
@@ -68,33 +68,33 @@ class ArchiveService {
       );
 
       if (directories.isEmpty) {
-        print('ArchiveService: Архів порожній');
-        return ArchiveExtractionResult.failure('Архів не містить папок модів');
+        print('ArchiveService: archive is empty');
+        return ArchiveExtractionResult.failure('archive contains no mod folders');
       }
 
-      print('ArchiveService: Знайдено ${directories.length} папок');
+      print('ArchiveService: found ${directories.length} folders');
       return ArchiveExtractionResult.successResult(directories);
     } catch (e) {
-      print('ArchiveService: Виняток: $e');
-      return ArchiveExtractionResult.failure('Помилка розархівування: $e');
+      print('ArchiveService: exception: $e');
+      return ArchiveExtractionResult.failure('extraction failed: $e');
     }
   }
 
   static Future<bool> _extractZip(File archiveFile, Directory destination) async {
     try {
-      print('ArchiveService: Читання ZIP файлу...');
+      print('ArchiveService: reading zip file...');
       final bytes = await archiveFile.readAsBytes();
-      print('ArchiveService: Прочитано ${bytes.length} bytes');
+      print('ArchiveService: read ${bytes.length} bytes');
 
-      print('ArchiveService: Декодування ZIP...');
+      print('ArchiveService: decoding zip...');
       final archive = ZipDecoder().decodeBytes(bytes, verify: true);
-      print('ArchiveService: ZIP містить ${archive.length} файлів');
+      print('ArchiveService: zip contains ${archive.length} files');
 
       int extracted = 0;
       for (final file in archive) {
         final sanitizedPath = _sanitizeArchivePath(destination.path, file.name);
         if (sanitizedPath == null) {
-          print('ArchiveService: Пропущено небезпечний шлях: ${file.name}');
+          print('ArchiveService: skipped unsafe path: ${file.name}');
           continue;
         }
 
@@ -111,10 +111,10 @@ class ArchiveService {
         }
       }
 
-      print('ArchiveService: ZIP успішно розархівовано, файлів: $extracted');
+      print('ArchiveService: zip extracted, files: $extracted');
       return true;
     } catch (e) {
-      print('ArchiveService: Помилка розархівування ZIP: $e');
+      print('ArchiveService: zip extraction failed: $e');
       return false;
     }
   }
@@ -127,11 +127,11 @@ class ArchiveService {
     if (sevenZipPath == null) {
       return _7ZipResult(
         false,
-        '7-Zip не знайдено. Встановіть 7-Zip для розпаковки RAR/7z.',
+        '7-zip not found. install 7-zip to extract rar/7z.',
       );
     }
 
-    print('ArchiveService: Використання 7-Zip: $sevenZipPath');
+    print('ArchiveService: using 7-zip: $sevenZipPath');
 
     final result = await Process.run(sevenZipPath, [
       'x',
@@ -142,14 +142,14 @@ class ArchiveService {
 
     if (result.exitCode != 0) {
       final errorOutput = result.stderr.toString().trim();
-      print('ArchiveService: 7-Zip помилка: $errorOutput');
+      print('ArchiveService: 7-zip error: $errorOutput');
       return _7ZipResult(
         false,
-        errorOutput.isNotEmpty ? errorOutput : 'Не вдалося розпакувати архів',
+        errorOutput.isNotEmpty ? errorOutput : 'could not extract archive',
       );
     }
 
-    print('ArchiveService: 7-Zip успішно розпакував');
+    print('ArchiveService: 7-zip extraction ok');
     return const _7ZipResult(true);
   }
 

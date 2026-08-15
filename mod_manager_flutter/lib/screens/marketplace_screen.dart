@@ -450,23 +450,23 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     
     _processedFiles.add(filePath);
     
-    print('LinuxMarketplace: Виявлено новий файл: $filePath');
+    print('LinuxMarketplace: new file detected: $filePath');
     
     await Future.delayed(const Duration(milliseconds: 500));
     
     final file = File(filePath);
     if (!await file.exists()) {
-      print('LinuxMarketplace: Файл не існує: $filePath');
+      print('LinuxMarketplace: file does not exist: $filePath');
       return;
     }
     
-    print('LinuxMarketplace: Очікування завершення завантаження...');
+    print('LinuxMarketplace: waiting for download to finish...');
     if (!await _waitForFileToBeReady(file)) {
-      print('LinuxMarketplace: Файл не готовий після очікування');
+      print('LinuxMarketplace: file not ready after wait');
       return;
     }
     
-    print('LinuxMarketplace: Файл готовий: ${file.lengthSync()} bytes');
+    print('LinuxMarketplace: file ready: ${file.lengthSync()} bytes');
     
     if (!mounted) return;
     
@@ -502,20 +502,20 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       await Future.delayed(const Duration(milliseconds: 1000));
       
       if (!await file.exists()) {
-        print('LinuxMarketplace: Файл зник, спроба $i/$maxAttempts');
+        print('LinuxMarketplace: file vanished, attempt $i/$maxAttempts');
         return false;
       }
       
       try {
         final currentSize = await file.length();
-        print('LinuxMarketplace: Перевірка розміру: $currentSize bytes (спроба ${i+1}/$maxAttempts)');
+        print('LinuxMarketplace: checking size: $currentSize bytes (attempt ${i+1}/$maxAttempts)');
         
         if (currentSize == previousSize && currentSize > 0) {
           stableCount++;
-          print('LinuxMarketplace: Розмір стабільний ($stableCount/3)');
+          print('LinuxMarketplace: size stable ($stableCount/3)');
           
           if (stableCount >= 3) {
-            print('LinuxMarketplace: Файл готовий! Розмір: $currentSize bytes');
+            print('LinuxMarketplace: file ready! size: $currentSize bytes');
             return true;
           }
         } else {
@@ -524,12 +524,12 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         
         previousSize = currentSize;
       } catch (e) {
-        print('LinuxMarketplace: Помилка перевірки розміру файлу: $e');
+        print('LinuxMarketplace: file size check failed: $e');
         await Future.delayed(const Duration(milliseconds: 1000));
       }
     }
     
-    print('LinuxMarketplace: Таймаут очікування (120 секунд)');
+    print('LinuxMarketplace: wait timeout (120 seconds)');
     return false;
   }
   
@@ -921,7 +921,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       final total = response.contentLength;
       int received = 0;
       int lastProgressUpdate = 0;
-      const progressUpdateThreshold = 262144; // Оновлювати прогрес кожні 256 KB
+      const progressUpdateThreshold = 262144;
 
       await response.listen(
         (chunk) {
@@ -970,21 +970,21 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         await file.delete();
       }
     } catch (e) {
-      print('Marketplace: Помилка видалення файлу після копіювання: $e');
+      print('Marketplace: file delete after copy failed: $e');
     }
     
     return targetPath;
   }
 
   Future<_InstallResult> _installArchive(File archiveFile) async {
-    print('Marketplace: Початок інсталяції архіву: ${archiveFile.path}');
-    print('Marketplace: Розмір файлу: ${await archiveFile.length()} bytes');
+    print('Marketplace: starting archive install: ${archiveFile.path}');
+    print('Marketplace: file size: ${await archiveFile.length()} bytes');
     
     final config = await ApiService.getConfig();
     final modsPath = config['mods_path'] ?? '';
 
     if (modsPath.isEmpty) {
-      print('Marketplace: Шлях до модів не налаштовано');
+      print('Marketplace: mods path not configured');
       return _InstallResult.error(loc.t('marketplace.install_missing_path'));
     }
 
@@ -994,7 +994,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       );
 
       if (!extractionResult.success) {
-        print('Marketplace: Помилка розархівування: ${extractionResult.error}');
+        print('Marketplace: extraction failed: ${extractionResult.error}');
         return _InstallResult.error(
           extractionResult.error ?? loc.t('marketplace.install_unsupported'),
         );
@@ -1044,13 +1044,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       
       if (isInSystemDownloads) {
         await archiveFile.delete();
-        print('Marketplace: Видалено тільки файл з системної Downloads: ${archiveFile.path}');
+        print('Marketplace: deleted only the file from system downloads: ${archiveFile.path}');
       } else {
         await archiveFile.parent.delete(recursive: true);
-        print('Marketplace: Видалено тимчасову директорію: ${archiveFile.parent.path}');
+        print('Marketplace: deleted temp directory: ${archiveFile.parent.path}');
       }
     } catch (e) {
-      print('Marketplace: Помилка видалення архіву: $e');
+      print('Marketplace: archive delete failed: $e');
     }
   }
 

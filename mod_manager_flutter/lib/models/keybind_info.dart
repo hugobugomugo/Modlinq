@@ -1,6 +1,6 @@
 class KeybindInfo {
-  final String section; // Назва секції (напр. keySwap, KeyUP)
-  final Map<String, String> keys; // Ключі та їх значення
+  final String section;
+  final Map<String, String> keys;
 
   KeybindInfo({
     required this.section,

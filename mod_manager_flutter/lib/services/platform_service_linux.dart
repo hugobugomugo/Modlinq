@@ -8,7 +8,7 @@ class LinuxPlatformService implements PlatformService {
   
   @override
   Future<bool> sendF10ToGame() async {
-    print('LinuxPlatformService: Відправка F10...');
+    print('LinuxPlatformService: sending f10...');
     
     final displayServer = getDisplayServerType();
     print('LinuxPlatformService: Display server: $displayServer');
@@ -32,9 +32,9 @@ class LinuxPlatformService implements PlatformService {
     }
     
     if (success) {
-      print('LinuxPlatformService: F10 успішно відправлено');
+      print('LinuxPlatformService: f10 sent');
     } else {
-      print('LinuxPlatformService: Не вдалося відправити F10');
+      print('LinuxPlatformService: could not send f10');
     }
     
     return success;
@@ -50,10 +50,10 @@ class LinuxPlatformService implements PlatformService {
       }
       
       await link.create(sourcePath, recursive: false);
-      print('LinuxPlatformService: Symlink створено: $linkPath -> $sourcePath');
+      print('LinuxPlatformService: symlink created: $linkPath -> $sourcePath');
       return true;
     } catch (e) {
-      print('LinuxPlatformService: Помилка створення symlink: $e');
+      print('LinuxPlatformService: symlink creation failed: $e');
       return false;
     }
   }
@@ -63,15 +63,15 @@ class LinuxPlatformService implements PlatformService {
     try {
       final isLink = await FileSystemEntity.isLink(linkPath);
       if (!isLink) {
-        print('LinuxPlatformService: $linkPath не є symlink');
+        print('LinuxPlatformService: $linkPath is not a symlink');
         return false;
       }
       
       await Link(linkPath).delete();
-      print('LinuxPlatformService: Symlink видалено: $linkPath');
+      print('LinuxPlatformService: symlink deleted: $linkPath');
       return true;
     } catch (e) {
-      print('LinuxPlatformService: Помилка видалення symlink: $e');
+      print('LinuxPlatformService: symlink delete failed: $e');
       return false;
     }
   }
@@ -121,7 +121,7 @@ class LinuxPlatformService implements PlatformService {
   
   @override
   Future<bool> checkDependencies() async {
-    print('LinuxPlatformService: Перевірка залежностей...');
+    print('LinuxPlatformService: checking dependencies...');
     
     final displayServer = getDisplayServerType();
     bool hasTools = false;
@@ -130,17 +130,17 @@ class LinuxPlatformService implements PlatformService {
       final result = await Process.run('which', ['xdotool']);
       hasTools = result.exitCode == 0;
       if (hasTools) {
-        print('LinuxPlatformService: xdotool встановлений ✓');
+        print('LinuxPlatformService: xdotool installed');
       } else {
-        print('LinuxPlatformService: xdotool НЕ встановлений ✗');
+        print('LinuxPlatformService: xdotool not installed');
       }
     } else if (displayServer == 'wayland') {
       final result = await Process.run('which', ['ydotool']);
       hasTools = result.exitCode == 0;
       if (hasTools) {
-        print('LinuxPlatformService: ydotool встановлений ✓');
+        print('LinuxPlatformService: ydotool installed');
       } else {
-        print('LinuxPlatformService: ydotool НЕ встановлений ✗');
+        print('LinuxPlatformService: ydotool not installed');
       }
     }
     
@@ -164,10 +164,10 @@ class LinuxPlatformService implements PlatformService {
         }
       }
       
-      print('LinuxPlatformService: Знайдено процесів гри: ${processes.length}');
+      print('LinuxPlatformService: found game processes: ${processes.length}');
       return processes;
     } catch (e) {
-      print('LinuxPlatformService: Помилка пошуку процесів: $e');
+      print('LinuxPlatformService: process search failed: $e');
       return [];
     }
   }
@@ -199,21 +199,21 @@ class LinuxPlatformService implements PlatformService {
           mode: LaunchMode.externalApplication,
         );
         if (result) {
-          print('LinuxPlatformService: Браузер відкрито: $url');
+          print('LinuxPlatformService: browser opened: $url');
           return true;
         }
       }
       
       final xdgResult = await Process.run('xdg-open', [url]);
       if (xdgResult.exitCode == 0) {
-        print('LinuxPlatformService: Браузер відкрито через xdg-open: $url');
+        print('LinuxPlatformService: browser opened via xdg-open: $url');
         return true;
       }
       
-      print('LinuxPlatformService: Не вдалося відкрити браузер');
+      print('LinuxPlatformService: could not open browser');
       return false;
     } catch (e) {
-      print('LinuxPlatformService: Помилка відкриття браузера: $e');
+      print('LinuxPlatformService: browser open failed: $e');
       return false;
     }
   }
@@ -241,7 +241,7 @@ class LinuxPlatformService implements PlatformService {
       
       return downloadsDir;
     } catch (e) {
-      print('LinuxPlatformService: Помилка отримання Downloads директорії: $e');
+      print('LinuxPlatformService: could not resolve downloads dir: $e');
       return null;
     }
   }
@@ -265,7 +265,7 @@ class LinuxPlatformService implements PlatformService {
           
           if (windowResult.exitCode == 0 && windowResult.stdout.toString().trim().isNotEmpty) {
             windowId = windowResult.stdout.toString().trim().split('\n').first;
-            print('LinuxPlatformService: Знайдено вікно гри: $name (ID: $windowId)');
+            print('LinuxPlatformService: found game window: $name (ID: $windowId)');
             break;
           }
         } catch (e) {
@@ -287,7 +287,7 @@ class LinuxPlatformService implements PlatformService {
 
       return keyResult.exitCode == 0;
     } catch (e) {
-      print('LinuxPlatformService: Помилка xdotool: $e');
+      print('LinuxPlatformService: xdotool error: $e');
       return false;
     }
   }
@@ -309,10 +309,10 @@ class LinuxPlatformService implements PlatformService {
         }
       }
 
-      print('LinuxPlatformService: F10 відправлено через ydotool');
+      print('LinuxPlatformService: f10 sent via ydotool');
       return true;
     } catch (e) {
-      print('LinuxPlatformService: Помилка ydotool: $e');
+      print('LinuxPlatformService: ydotool error: $e');
       return false;
     }
   }
@@ -325,7 +325,7 @@ class LinuxPlatformService implements PlatformService {
         for (final name in windowNames) {
           try {
             await Process.run('wmctrl', ['-a', name]);
-            print('LinuxPlatformService: Активовано вікно через wmctrl: $name');
+            print('LinuxPlatformService: window activated via wmctrl: $name');
             return;
           } catch (e) {
             continue;
@@ -343,7 +343,7 @@ class LinuxPlatformService implements PlatformService {
             if (result.exitCode == 0 && result.stdout.toString().trim().isNotEmpty) {
               final windowId = result.stdout.toString().trim().split('\n').first;
               await Process.run('xdotool', ['windowactivate', windowId]);
-              print('LinuxPlatformService: Активовано вікно через xdotool: $name');
+              print('LinuxPlatformService: window activated via xdotool: $name');
               return;
             }
           } catch (e) {
@@ -352,7 +352,7 @@ class LinuxPlatformService implements PlatformService {
         }
       }
     } catch (e) {
-      print('LinuxPlatformService: Не вдалося активувати вікно гри: $e');
+      print('LinuxPlatformService: could not activate game window: $e');
     }
   }
 }

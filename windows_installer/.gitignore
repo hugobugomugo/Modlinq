@@ -1,7 +1,7 @@
-# Ігноруємо згенеровані файли
+# generated
 output/
 *.exe
 *.zip
 
-# Тимчасові файли Inno Setup
+# inno setup temp
 *.~is

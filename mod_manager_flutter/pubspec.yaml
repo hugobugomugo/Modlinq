@@ -1,7 +1,7 @@
 name: modlinq
 description: "Mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness."
 publish_to: "none"
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: ^3.8.1
@@ -26,6 +26,7 @@ dependencies:
   flutter_inappwebview_windows: 0.7.0-beta.3
   url_launcher: ^6.2.5
   archive: ^4.0.9
+  crypto: ^3.0.6
 
   # State Management
   flutter_riverpod: ^3.3.1

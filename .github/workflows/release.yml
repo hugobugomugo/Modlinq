@@ -35,7 +35,7 @@ jobs:
       - name: install linux build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config liblzma-dev zip
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake pkg-config liblzma-dev libwpewebkit-1.0-dev libwpebackend-fdo-1.0-dev zip
 
       - uses: subosito/flutter-action@v2
         with:

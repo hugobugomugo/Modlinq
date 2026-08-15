@@ -1,0 +1,197 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:archive/archive_io.dart';
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
+
+import '../core/app_version.dart';
+import '../models/update_info.dart';
+
+/// how this copy of the app was installed
+enum InstallKind {
+  /// unpacked zip the user owns, safe to replace in place
+  portable,
+
+  /// distro or system managed (aur, /usr, /opt, program files), update via the package manager
+  managed,
+}
+
+class UpdateService {
+  static const String repoSlug = 'hugobugomugo/Modlinq';
+  static const String latestReleaseUrl =
+      'https://api.github.com/repos/$repoSlug/releases/latest';
+
+  final http.Client _client;
+
+  UpdateService({http.Client? client}) : _client = client ?? http.Client();
+
+  // ---- pure helpers, covered by tests ----
+
+  /// parses `1.2.3` / `v1.2.3-beta.1` into core numbers plus prerelease tail
+  static (List<int>, String) parseVersion(String raw) {
+    var v = raw.trim();
+    if (v.startsWith('v')) v = v.substring(1);
+    final dash = v.indexOf('-');
+    final pre = dash == -1 ? '' : v.substring(dash + 1);
+    final core = dash == -1 ? v : v.substring(0, dash);
+    final parts = core.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+    while (parts.length < 3) {
+      parts.add(0);
+    }
+    return (parts.sublist(0, 3), pre);
+  }
+
+  /// true when [remote] is a strictly newer version than [current]
+  static bool isNewer(String remote, String current) {
+    final (rc, rp) = parseVersion(remote);
+    final (cc, cp) = parseVersion(current);
+    for (var i = 0; i < 3; i++) {
+      if (rc[i] != cc[i]) return rc[i] > cc[i];
+    }
+    // same core: a release beats a prerelease, otherwise compare tails
+    if (rp.isEmpty && cp.isNotEmpty) return true;
+    if (rp.isNotEmpty && cp.isEmpty) return false;
+    return rp.compareTo(cp) > 0;
+  }
+
+  /// release asset suffix for the running platform
+  static String platformAssetSuffix() =>
+      Platform.isWindows ? 'windows-x64.zip' : 'linux-x64.zip';
+
+  /// pulls `<sha256>  <filename>` pairs out of a SHA256SUMS.txt body
+  static Map<String, String> parseChecksums(String body) {
+    final out = <String, String>{};
+    for (final line in const LineSplitter().convert(body)) {
+      final t = line.trim();
+      if (t.isEmpty) continue;
+      final m = RegExp(r'^([a-fA-F0-9]{64})\s+\*?(.+)$').firstMatch(t);
+      if (m != null) out[m.group(2)!.trim()] = m.group(1)!.toLowerCase();
+    }
+    return out;
+  }
+
+  static Directory installDir() => File(Platform.resolvedExecutable).parent;
+
+  /// system paths we must never try to overwrite from inside the app
+  static bool isSystemPath(String p) {
+    final lower = p.replaceAll(r'\', '/').toLowerCase();
+    final probe = lower.endsWith('/') ? lower : '$lower/';
+    const roots = ['/usr/', '/opt/', '/bin/', '/sbin/', '/nix/store/'];
+    for (final r in roots) {
+      if (probe.startsWith(r)) return true;
+    }
+    return lower.contains('/program files');
+  }
+
+  /// managed installs cannot self update, the package manager owns the files
+  static Future<InstallKind> detectInstallKind({Directory? dir}) async {
+    final d = dir ?? installDir();
+    if (isSystemPath(d.path)) return InstallKind.managed;
+    // final say: can we actually write next to the binary
+    try {
+      final probe = File(path.join(d.path, '.modlinq-write-probe'));
+      await probe.writeAsString('x', flush: true);
+      await probe.delete();
+      return InstallKind.portable;
+    } catch (_) {
+      return InstallKind.managed;
+    }
+  }
+
+  // ---- network ----
+
+  Future<UpdateInfo?> checkForUpdate({String current = appVersion}) async {
+    final res = await _client.get(
+      Uri.parse(latestReleaseUrl),
+      headers: const {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'modlinq-updater',
+      },
+    );
+    if (res.statusCode != 200) return null;
+
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    final tag = (json['tag_name'] ?? '') as String;
+    if (tag.isEmpty) return null;
+
+    final version = tag.startsWith('v') ? tag.substring(1) : tag;
+    if (!isNewer(version, current)) return null;
+
+    final assets = (json['assets'] as List?) ?? const [];
+    final suffix = platformAssetSuffix();
+
+    Map<String, dynamic>? asset;
+    String? checksumUrl;
+    for (final a in assets.cast<Map<String, dynamic>>()) {
+      final name = (a['name'] ?? '') as String;
+      if (name.endsWith(suffix)) asset = a;
+      if (name == 'SHA256SUMS.txt') {
+        checksumUrl = a['browser_download_url'] as String?;
+      }
+    }
+    if (asset == null) return null;
+
+    return UpdateInfo(
+      version: version,
+      tag: tag,
+      notes: (json['body'] ?? '') as String,
+      assetName: asset['name'] as String,
+      assetUrl: asset['browser_download_url'] as String,
+      assetSize: (asset['size'] ?? 0) as int,
+      checksumUrl: checksumUrl,
+    );
+  }
+
+  Future<File> downloadAsset(
+    UpdateInfo info, {
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final dir = await Directory.systemTemp.createTemp('modlinq-update');
+    final out = File(path.join(dir.path, info.assetName));
+
+    final req = http.Request('GET', Uri.parse(info.assetUrl));
+    req.headers['User-Agent'] = 'modlinq-updater';
+    final res = await _client.send(req);
+    if (res.statusCode != 200) {
+      throw HttpException('download failed: ${res.statusCode}');
+    }
+
+    final total = res.contentLength ?? info.assetSize;
+    var received = 0;
+    final sink = out.openWrite();
+    await for (final chunk in res.stream) {
+      received += chunk.length;
+      sink.add(chunk);
+      onProgress?.call(received, total);
+    }
+    await sink.close();
+    return out;
+  }
+
+  Future<bool> verifyChecksum(File file, String expectedSha256) async {
+    final digest = await sha256.bind(file.openRead()).first;
+    return digest.toString().toLowerCase() == expectedSha256.toLowerCase();
+  }
+
+  Future<String?> fetchExpectedChecksum(UpdateInfo info) async {
+    if (info.checksumUrl == null) return null;
+    final res = await _client.get(
+      Uri.parse(info.checksumUrl!),
+      headers: const {'User-Agent': 'modlinq-updater'},
+    );
+    if (res.statusCode != 200) return null;
+    return parseChecksums(res.body)[info.assetName];
+  }
+
+  /// unpacks the zip into a staging dir next to the install and returns it
+  Future<Directory> stageUpdate(File zip, {Directory? target}) async {
+    final install = target ?? installDir();
+    final staging = Directory(path.join(install.parent.path, '.modlinq-staging'));
+    if (await staging.exists()) await staging.delete(recursive: true);
+    await staging.create(recursive: true);
+    await extractFileToDisk(zip.path, staging.path);
+    return staging;
+  }
+}

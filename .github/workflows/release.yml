@@ -75,9 +75,13 @@ jobs:
       - run: flutter pub get
         working-directory: mod_manager_flutter
 
+      # inappwebview_windows still includes <experimental/coroutine>, which
+      # newer msvc rejects unless the deprecation assert is silenced
       - name: package
         run: .\windows_installer\build_portable.ps1 -Version ${{ needs.version.outputs.version }}
         shell: pwsh
+        env:
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
 
       - uses: actions/upload-artifact@v4
         with:

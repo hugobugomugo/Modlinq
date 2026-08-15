@@ -2004,13 +2004,6 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (Widget child, Animation<double> animation) {
-                final isOldWidget =
-                    child.key !=
-                        ValueKey(
-                          'character_${selectedIndex}_${currentSkins.length}',
-                        ) &&
-                    child.key != const ValueKey('empty');
-
                 final outOffset =
                     Tween<Offset>(
                       begin: Offset.zero,

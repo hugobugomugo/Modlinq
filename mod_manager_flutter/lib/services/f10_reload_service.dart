@@ -2,30 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 class F10ReloadService {
-  
-  Future<List<String>> _findGameProcesses() async {
-    try {
-      final result = await Process.run('ps', ['aux']);
-      final processes = <String>[];
-      
-      if (result.exitCode == 0) {
-        final lines = result.stdout.toString().split('\n');
-        for (final line in lines) {
-          if (line.toLowerCase().contains('zenless') || 
-              line.toLowerCase().contains('zzz') ||
-              line.contains('ZenlessZoneZero.exe')) {
-            processes.add(line.trim());
-          }
-        }
-      }
-      
-      print('F10ReloadService: found game processes: ${processes.length}');
-      return processes;
-    } catch (e) {
-      print('F10ReloadService: process search failed: $e');
-      return [];
-    }
-  }
 
   Future<bool> _sendF10ViaXdotool() async {
     try {
@@ -224,34 +200,6 @@ endif
       return true;
     } catch (e) {
       print('F10ReloadService: ini file creation failed: $e');
-      return false;
-    }
-  }
-
-  Future<bool> _restartWineProcess() async {
-    try {
-      final processes = await _findGameProcesses();
-      if (processes.isEmpty) {
-        print('F10ReloadService: wine game processes not found');
-        return false;
-      }
-
-      for (final processLine in processes) {
-        final parts = processLine.split(RegExp(r'\s+'));
-        if (parts.length > 1) {
-          final pid = parts[1];
-          try {
-            await Process.run('kill', ['-USR1', pid]);
-            print('F10ReloadService: sent sigusr1 to pid $pid');
-          } catch (e) {
-            print('F10ReloadService: signal send failed to $pid: $e');
-          }
-        }
-      }
-      
-      return true;
-    } catch (e) {
-      print('F10ReloadService: wine process restart failed: $e');
       return false;
     }
   }

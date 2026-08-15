@@ -491,24 +491,6 @@ class ModManagerService {
     await _platformService.checkDependencies();
   }
 
-  Future<void> _safeRemove(String filePath) async {
-    try {
-      final isLink = await _platformService.isModLink(filePath);
-      if (isLink) {
-        await _platformService.removeModLink(filePath);
-        return;
-      }
-      final entity = await FileSystemEntity.type(filePath);
-      if (entity == FileSystemEntityType.directory) {
-        await Directory(filePath).delete(recursive: true);
-      } else if (entity == FileSystemEntityType.file) {
-        await File(filePath).delete();
-      }
-    } catch (e) {
-      print('ModManagerService: _safeRemove error: $e');
-    }
-  }
-
   Future<(List<String>, Map<String, String>)> importMods(List<String> folderPaths) async {
     try {
       final (valid, _) = await validatePaths();

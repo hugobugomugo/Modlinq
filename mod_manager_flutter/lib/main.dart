@@ -189,7 +189,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
   late AnimationController _sidebarAnimationController;
   late Animation<double> _logoScaleAnimation;
   late Animation<double> _logoRotationAnimation;
-  late Animation<double> _sidebarSlideAnimation;
 
   @override
   void initState() {
@@ -216,13 +215,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
       CurvedAnimation(
         parent: _logoAnimationController,
         curve: Curves.easeInOut,
-      ),
-    );
-
-    _sidebarSlideAnimation = Tween<double>(begin: -1.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _sidebarAnimationController,
-        curve: Curves.easeOutCubic,
       ),
     );
 

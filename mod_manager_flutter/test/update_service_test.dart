@@ -186,6 +186,26 @@ void main() {
     });
   });
 
+  group('swap script', () {
+    test('waits for the pid before copying, then relaunches', () {
+      final s = UpdateService.buildSwapScript(
+        processId: 4242,
+        stagingPath: '/tmp/stage',
+        installPath: '/opt/app',
+        exeName: 'modlinq',
+      );
+      expect(s, contains('4242'));
+      expect(s, contains('/tmp/stage'));
+      expect(s, contains('/opt/app'));
+      expect(s, contains('modlinq'));
+      // the wait must come before the copy, or we clobber a running binary
+      final waitAt = Platform.isWindows ? s.indexOf('tasklist') : s.indexOf('kill -0');
+      final copyAt = Platform.isWindows ? s.indexOf('xcopy') : s.indexOf('cp -a');
+      expect(waitAt, greaterThanOrEqualTo(0));
+      expect(copyAt, greaterThan(waitAt));
+    });
+  });
+
   group('app version', () {
     test('appVersion matches the pubspec version', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();

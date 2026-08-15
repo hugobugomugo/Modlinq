@@ -15,6 +15,7 @@ import 'screens/marketplace_screen.dart';
 import 'utils/state_providers.dart';
 import 'services/api_service.dart';
 import 'l10n/app_localizations.dart';
+import 'screens/components/update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -220,6 +221,10 @@ class _MainScreenState extends ConsumerState<MainScreen>
 
     _logoAnimationController.forward();
     _sidebarAnimationController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) UpdateDialog.maybeShow(context);
+    });
   }
 
   @override

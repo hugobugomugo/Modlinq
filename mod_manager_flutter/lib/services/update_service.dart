@@ -194,4 +194,62 @@ class UpdateService {
     await extractFileToDisk(zip.path, staging.path);
     return staging;
   }
+
+  /// the running binary cannot overwrite itself, so the swap is handed to a
+  /// detached helper that waits for this pid to exit first
+  static String buildSwapScript({
+    required int processId,
+    required String stagingPath,
+    required String installPath,
+    required String exeName,
+  }) {
+    if (Platform.isWindows) {
+      return '''
+@echo off
+:wait
+tasklist /FI "PID eq $processId" 2>nul | find "$processId" >nul
+if not errorlevel 1 (
+  timeout /t 1 /nobreak >nul
+  goto wait
+)
+xcopy /E /Y /I "$stagingPath\\*" "$installPath\\" >nul
+rmdir /S /Q "$stagingPath"
+start "" "$installPath\\$exeName"
+del "%~f0"
+''';
+    }
+    return '''
+#!/bin/sh
+while kill -0 $processId 2>/dev/null; do sleep 0.2; done
+cp -a "$stagingPath/." "$installPath/"
+rm -rf "$stagingPath"
+chmod +x "$installPath/$exeName"
+"$installPath/$exeName" &
+rm -- "\$0"
+''';
+  }
+
+  /// spawns the swap helper and returns, the caller then exits the app
+  Future<void> applyUpdate(Directory staging, {Directory? target}) async {
+    final install = target ?? installDir();
+    final exeName = path.basename(Platform.resolvedExecutable);
+    final ext = Platform.isWindows ? 'bat' : 'sh';
+    final script = File(path.join(staging.parent.path, 'modlinq-swap.$ext'));
+
+    await script.writeAsString(buildSwapScript(
+      processId: pid,
+      stagingPath: staging.path,
+      installPath: install.path,
+      exeName: exeName,
+    ));
+
+    if (!Platform.isWindows) {
+      await Process.run('chmod', ['+x', script.path]);
+      await Process.start('/bin/sh', [script.path],
+          mode: ProcessStartMode.detached);
+    } else {
+      await Process.start('cmd', ['/c', 'start', '/b', script.path],
+          mode: ProcessStartMode.detached);
+    }
+  }
 }

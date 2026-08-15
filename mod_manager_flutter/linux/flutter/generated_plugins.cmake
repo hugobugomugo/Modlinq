@@ -4,7 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
-  flutter_inappwebview_linux
   pasteboard
   screen_retriever_linux
   url_launcher_linux

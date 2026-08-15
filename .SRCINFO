@@ -1,8 +1,8 @@
-pkgbase = zzz-mod-manager-git
-	pkgdesc = Modern mod manager for Zenless Zone Zero using Flutter
-	pkgver = r4.6b91be6
+pkgbase = modlinq-git
+	pkgdesc = Mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness
+	pkgver = r6.967f969
 	pkgrel = 1
-	url = https://github.com/NotionMe/Mod-manager
+	url = https://github.com/hugobugomugo/Modlinq
 	arch = x86_64
 	license = MIT
 	makedepends = git
@@ -14,9 +14,9 @@ pkgbase = zzz-mod-manager-git
 	depends = gtk3
 	depends = glib2
 	depends = libx11
-	provides = zzz-mod-manager
-	conflicts = zzz-mod-manager
-	source = git+https://github.com/NotionMe/Mod-manager.git
+	provides = modlinq
+	conflicts = modlinq
+	source = git+https://github.com/hugobugomugo/Modlinq.git
 	sha256sums = SKIP
 
-pkgname = zzz-mod-manager-git
+pkgname = modlinq-git

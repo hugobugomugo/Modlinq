@@ -1,540 +1,73 @@
-# ZZZ Mod Manager
+# Modlinq
 
-> Modern mod manager for Zenless Zone Zero with symbolic link management
+Mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness. Linux and Windows, built with Flutter.
 
-[🇺🇦 Українська версія](./README.uk.md)
+Mods are activated with symbolic links, so nothing is copied and the original files in your library are never modified.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
-![Flutter](https://img.shields.io/badge/Flutter-3.8.1+-02569B.svg)
+## Supported games
 
-## 📋 Table of Contents
+| Game | Loader | Install detection |
+|------|--------|-------------------|
+| Zenless Zone Zero | 3DMigoto / XXMI | manual path |
+| Wuthering Waves | 3DMigoto / XXMI | manual path |
+| Neverness to Everness | native | automatic (Steam, Wine and Proton prefixes) |
 
-- [Overview](#overview)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [F10 Auto-Reload](#f10-auto-reload)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Building from Source](#building-from-source)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+## Features
 
-## 🎯 Overview
+- Enable and disable mods by symlink, instantly, without moving files
+- Per-game character rosters with automatic tagging from folder names
+- `Misc` bucket for manual grouping and `Unknown` bucket for unmatched mods
+- Import by drag and drop, path paste (Ctrl+V), file picker, or `.zip` / `.rar` / `.7z` archive
+- Single mode (one mod per character) or multi mode (many)
+- Character search and filtering
+- NTE: automatic install discovery, dedicated mod library and installer
+- ZZZ: F10 auto-reload sent to the game on mod change
+- Per-game settings, dark and light theme, English and Ukrainian
 
-ZZZ Mod Manager is a modern, user-friendly mod manager for Zenless Zone Zero built with Flutter. It provides a clean interface for managing character mods using symbolic links, making it easy to enable/disable mods without moving files around.
+## Install
 
-The application uses symbolic links to manage mods, which means:
-- ✅ No file copying - instant mod activation/deactivation
-- ✅ Saves disk space
-- ✅ Original mod files remain untouched in their location
-- ✅ Safe and reversible operations
+Download the release build for your platform from [Releases](https://github.com/hugobugomugo/Modlinq/releases).
 
-## ✨ Features
+Linux runtime dependencies: `gtk3`, `glib2`, `libx11`.
 
-### Core Features
+Optional, for ZZZ F10 auto-reload:
 
-- **🎮 Mod Management**: Easy enable/disable mods with a single click
-- **👥 Character-based Organization**: Automatically organize mods by characters
-- **🏷️ Auto-Tagging**: Automatic character detection from folder names
-- **📦 Multiple Import Methods**:
-  - Drag & Drop folders
-  - Paste paths with Ctrl+V
-  - File picker dialog
-- **🔄 Single/Multi Mode**: Enable single or multiple mods per character
-- **🎨 Modern UI**: Clean Material Design 3 interface
-- **🌓 Dark/Light Theme**: Automatic theme switching
-- **⚡ F10 Auto-Reload**: Automatically send F10 to game when activating mods
-- **🧹 Auto-Cleanup**: Removes orphaned symbolic links and tags
+- Wayland: `ydotool`, `wmctrl`, `xdotool`, user in the `input` group, `ydotool.service` enabled
+- X11: `xdotool`, `wmctrl`
 
-### Advanced Features
+## Build from source
 
-- **📊 Mod Status Display**: Visual indication of active/inactive mods
-- **🖼️ Character Avatars**: 38 character portraits included
-- **🔍 Smart Tag Detection**: Recognizes all ZZZ characters
-- **💾 Persistent Settings**: Saves your preferences and active mods
-- **🪟 Window Management**: Customizable window size and position
-- **📱 Responsive Design**: Adapts to different screen sizes
-
-## 📸 Screenshots
-
-*(The application features a modern dark/light theme interface with character cards, mod listings, and easy-to-use controls)*
-
-## 📥 Installation
-
-### Method 1: AUR (Arch Linux)
+Requires Flutter 3.44.8.
 
 ```bash
-# Using yay
-yay -S zzz-mod-manager-git
-
-# Using paru
-paru -S zzz-mod-manager-git
-
-# Manual installation
-git clone https://aur.archlinux.org/zzz-mod-manager-git.git
-cd zzz-mod-manager-git
-makepkg -si
-```
-
-### Method 2: Manual Installation
-
-1. **Install dependencies**:
-```bash
-sudo pacman -S flutter gtk3 glib2 libx11
-```
-
-2. **Clone the repository**:
-```bash
-git clone https://github.com/NotionMe/Mod-manager.git
-cd Mod-manager/mod_manager_flutter
-```
-
-3. **Install Flutter dependencies**:
-```bash
+git clone https://github.com/hugobugomugo/Modlinq.git
+cd Modlinq/mod_manager_flutter
 flutter pub get
+flutter build linux --release      # or: flutter build windows --release
 ```
 
-4. **Build the application**:
-```bash
-flutter build linux --release
-```
+Linux binary: `build/linux/x64/release/bundle/modlinq`
 
-5. **Run the application**:
-```bash
-./build/linux/x64/release/bundle/mod_manager_flutter
-```
-
-## 🚀 Quick Start
-
-### First Launch - Welcome Screen
-
-When you launch the application for the first time, you'll see a **Welcome Screen** that guides you through initial setup:
-
-#### Step 1: Choose Your Language
-- Select between **English** or **Українська** (Ukrainian)
-- The interface will immediately switch to your chosen language
-
-#### Step 2: Configure Directories
-You need to configure two directories:
-
-**1. Mods Folder (Link/Target Directory)**
-- This is where 3DMigoto/XXMI loads mods **FROM**
-- Usually located at: `XXMI-Launcher/ZZMI/Mods` or similar
-- Example paths:
-  - `/mnt/games/HoYoPlay/games/XXMI-Launcher/ZZMI/Mods`
-  - `C:\Games\XXMI-Launcher\ZZMI\Mods` (Windows)
-- **What happens here**: Active mod symbolic links are created in this folder
-
-**2. SaveMods Folder (Storage/Library Directory)**
-- This is where you **STORE** your downloaded mods collection
-- Can be anywhere on your system
-- Example paths:
-  - `/home/user/MyZZZMods`
-  - `D:\ZZZ_Mod_Collection`
-- **What happens here**: Your original mod folders are kept safely here
-
-**💡 How it works:**
-```
-SaveMods Folder (Your Library)     →     Mods Folder (Active Mods)
-├── Ellen_BeachOutfit/             →     [symlink] → Ellen_BeachOutfit/
-├── Miyabi_Kimono/                        (inactive, no link)
-├── Burnice_Casual/                →     [symlink] → Burnice_Casual/
-└── Jane_SchoolGirl/                      (inactive, no link)
-```
-- Activating a mod = Creating a symbolic link from Mods folder → SaveMods folder
-- Deactivating a mod = Removing the symbolic link
-- Your original files in SaveMods stay untouched! ✅
-
-#### Step 3: Ready!
-- Click **Finish** to complete setup
-- You'll see the main screen and can start managing mods
-
-### After Initial Setup
-
-1. **Import mods**:
-   - Use Drag & Drop to add mod folders to your SaveMods directory
-   - Or press Ctrl+V to paste paths
-   - Or click the "+" card to use file picker
-   - The app will automatically detect character names from folder names
-
-2. **Activate mods**:
-   - Click on a mod card to enable/disable it
-   - Enabled mods get a symbolic link created in your Mods folder
-   - Use Single/Multi toggle to choose activation mode
-   - Press F10 in game (or use auto-reload feature)
-
-3. **Organize by characters**:
-   - Click on character avatars to filter mods
-   - Drag and drop mods between characters
-   - The app auto-tags mods based on folder names
-
-### Understanding the Two Folders
-
-#### 📁 SaveMods Folder (Your Library)
-- **Purpose**: Permanent storage for ALL your mods
-- **Location**: Anywhere you want (external drive, separate partition, etc.)
-- **Contents**: All downloaded mods, organized as you like
-- **Safety**: Your original files never change
-- **Example structure**:
-  ```
-  /home/user/MyZZZMods/
-  ├── Ellen_BeachOutfit/
-  │   ├── EllenBeach.ini
-  │   ├── textures/
-  │   └── ...
-  ├── Miyabi_Kimono/
-  │   ├── MiyabiKimono.ini
-  │   └── ...
-  └── Burnice_Casual/
-      └── ...
-  ```
-
-#### 🔗 Mods Folder (Active Mods - Links Only)
-- **Purpose**: Where 3DMigoto loads mods FROM during gameplay
-- **Location**: Inside your XXMI/3DMigoto installation
-- **Contents**: Symbolic links ONLY (no actual files)
-- **Managed by**: This mod manager (don't manually edit!)
-- **Example structure**:
-  ```
-  /path/to/XXMI-Launcher/ZZMI/Mods/
-  ├── Ellen_BeachOutfit → /home/user/MyZZZMods/Ellen_BeachOutfit/
-  ├── Burnice_Casual → /home/user/MyZZZMods/Burnice_Casual/
-  └── (links to active mods only)
-  ```
-
-**Why this system?**
-- ✅ No file duplication - saves disk space
-- ✅ Instant enable/disable - just create/remove links
-- ✅ Safe - original files never modified
-- ✅ Organized - keep your library separate from active mods
-- ✅ Flexible - move your SaveMods folder anywhere without breaking anything
-
-## ⚡ F10 Auto-Reload
-
-The F10 Auto-Reload feature automatically sends the F10 key to the game when you activate/deactivate mods, eliminating the need to manually switch to the game and press F10.
-
-### Setup (One-time, 2 minutes)
-
-#### For Wayland Users:
+Run the test suite and the analyzer before opening a pull request:
 
 ```bash
-# 1. Install required tools
-sudo pacman -S ydotool wmctrl xdotool
-
-# 2. Add yourself to the input group
-sudo usermod -a -G input $USER
-
-# 3. Enable ydotool service
-sudo systemctl enable --now ydotool.service
-
-# 4. Reboot (IMPORTANT!)
-sudo reboot
+flutter analyze
+flutter test
 ```
 
-#### For X11 Users:
+## Data locations
 
-```bash
-# Install xdotool
-sudo pacman -S xdotool wmctrl
-```
+| Platform | Path |
+|----------|------|
+| Linux | `~/.local/share/modlinq/` |
+| Windows | `%APPDATA%\modlinq\` |
 
-### How to Use
+Holds `config.json`, cached mod images, and the NTE mod library.
 
-#### Method 1: Alt+Tab Workflow ⭐ (Recommended)
+## Credits
 
-```
-1. Launch Zenless Zone Zero
-2. Alt+Tab to the mod manager
-3. Select/enable a mod
-4. Alt+Tab back to the game
-5. F10 is automatically sent! ✅
-```
+Fork of [NotionMe/Mod-manager](https://github.com/NotionMe/Mod-manager).
 
-#### Method 2: Dual Monitor Setup 🖥️🖥️
+## License
 
-```
-Game on Monitor 1 (always visible)
-Mod Manager on Monitor 2
-Simply activate mods - works instantly! ✅
-```
-
-#### Method 3: Manual F10 Button
-
-```
-Click the "F10" button in the mod manager UI
-```
-
-### Important Notes for Wayland
-
-- ✅ Game window must be **VISIBLE** (not minimized)
-- ✅ ydotool daemon must be running
-- ✅ You must be in the `input` group
-- ✅ System must be rebooted after setup
-
-### Troubleshooting F10
-
-**Check 1: Permissions**
-```bash
-groups | grep input
-# Should show: ... input ...
-```
-
-**Check 2: ydotool daemon**
-```bash
-ps aux | grep ydotool
-# Should show a running process
-```
-
-**Check 3: Test F10**
-```bash
-# Test the Python script
-python3 /opt/zzz-mod-manager/scripts/f10_reload.py /path/to/mods
-
-# Manual test with ydotool
-ydotool key 67:1 67:0
-```
-
-## 📖 Usage
-
-### Adding Mods
-
-#### Method 1: Drag & Drop
-1. Open your file manager
-2. Select one or more mod folders
-3. Drag them into the mod manager window
-4. Wait for import to complete
-
-#### Method 2: Paste (Ctrl+V)
-1. Copy a mod folder path (Ctrl+C in file manager)
-2. Switch to mod manager
-3. Press Ctrl+V
-4. Wait for import to complete
-
-#### Method 3: File Picker
-1. Click the "+" card at the end of the mod list
-2. Browse and select mod folders
-3. Click "Select Folder"
-
-### Managing Mods
-
-#### Single Mode vs Multi Mode
-
-- **Single Mode**: Only one mod can be active per character
-  - Automatically deactivates other mods when enabling one
-  - Best for character replacements
-
-- **Multi Mode**: Multiple mods can be active per character
-  - Enable as many mods as you want
-  - Best for accessories, weapons, effects
-
-#### Activating/Deactivating Mods
-
-1. Click on a mod card to toggle its status
-2. Active mods show with a checkmark (✓)
-3. The symbolic link is created/removed automatically
-4. F10 is sent automatically (if configured)
-
-### Character Tags
-
-Tags help organize mods by character. The system automatically detects characters from folder names:
-
-- `Ellen_School_Girl` → Tagged as "Ellen" ✅
-- `miyabi_winter_outfit` → Tagged as "Miyabi" ✅
-- `Burnice-Casual` → Tagged as "Burnice" ✅
-
-**Manual tagging**: Click the tag button on any mod card to assign/change character tags.
-
-**Bulk auto-tagging**: Go to Settings → Auto-tagging → "Tag all mods" to automatically tag all untagged mods.
-
-### Filtering Mods
-
-- Click on a character avatar to show only mods for that character
-- Click "All" to show all mods
-- Use the search feature (if available) to find specific mods
-
-## ⚙️ Configuration
-
-Configuration is stored in: `~/.local/share/zzz-mod-manager/config.json`
-
-### Settings Panel
-
-Access via the ⚙️ button:
-
-- **Mods Path**: Where active mods are loaded from
-- **SaveMods Path**: Where your mod library is stored
-- **Theme**: Dark/Light/Auto
-- **Language**: English/Ukrainian
-- **Auto-tagging**: Enable/disable automatic character detection
-
-### Advanced Configuration
-
-You can manually edit `config.json`:
-
-```json
-{
-  "mods_path": "/path/to/3DMigoto/Mods",
-  "save_mods_path": "/path/to/3DMigoto/SaveMods",
-  "active_mods": ["mod1", "mod2"],
-  "theme": "dark-blue",
-  "language": "en",
-  "mod_character_tags": {
-    "mod_folder_name": "character_id"
-  },
-  "first_run": false
-}
-```
-
-## 🔨 Building from Source
-
-### Prerequisites
-
-- Flutter SDK 3.8.1 or higher
-- Linux (tested on Arch Linux)
-- GTK 3
-- GLib 2
-- libX11
-
-### Build Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/NotionMe/Mod-manager.git
-cd Mod-manager/mod_manager_flutter
-
-# Get dependencies
-flutter pub get
-
-# Run in development mode
-flutter run -d linux
-
-# Build release version
-flutter build linux --release
-
-# The executable will be in:
-# build/linux/x64/release/bundle/mod_manager_flutter
-```
-
-### Build AUR Package
-
-```bash
-cd /path/to/Mod-manager
-makepkg -si
-```
-
-## 🐛 Troubleshooting
-
-### Mods Not Showing Up
-
-1. **Check paths in Settings**:
-   - Verify Mods Path points to the correct directory
-   - Verify SaveMods Path contains your mods
-
-2. **Check folder structure**:
-   - Mods should be in individual folders
-   - Each folder should contain mod files (INI, DDS, etc.)
-
-3. **Restart the application**:
-   - Sometimes a restart helps refresh the mod list
-
-### Mods Not Activating in Game
-
-1. **Verify 3DMigoto is working**:
-   - Check if other mods work
-   - Look for the 3DMigoto overlay (usually top-left)
-
-2. **Check symbolic links**:
-   ```bash
-   ls -la /path/to/Mods/
-   # Look for symbolic links (shown with ->)
-   ```
-
-3. **Press F10 in game**:
-   - 3DMigoto needs F10 to reload mods
-   - Use the auto-reload feature for convenience
-
-### F10 Auto-Reload Not Working
-
-**For Wayland**:
-1. Verify you're in the input group: `groups | grep input`
-2. Check ydotool is running: `systemctl status ydotool`
-3. Ensure game window is visible (not minimized)
-4. Reboot after initial setup
-
-**For X11**:
-1. Verify xdotool is installed: `which xdotool`
-2. Test manually: `xdotool key F10`
-
-### Application Crashes
-
-1. **Check logs**:
-   ```bash
-   journalctl -xe
-   ```
-
-2. **Run from terminal** to see errors:
-   ```bash
-   zzz-mod-manager
-   ```
-
-3. **Clear config** (backup first!):
-   ```bash
-   mv ~/.local/share/zzz-mod-manager/config.json ~/.local/share/zzz-mod-manager/config.json.bak
-   ```
-
-### Permission Issues
-
-```bash
-# Ensure you have write permissions to mod directories
-chmod -R u+w /path/to/Mods
-chmod -R u+w /path/to/SaveMods
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### How to Contribute
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow Dart/Flutter best practices
-- Maintain the existing code style
-- Add comments for complex logic
-- Test your changes thoroughly
-- Update documentation as needed
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Flutter](https://flutter.dev/)
-- Icons and assets from the Zenless Zone Zero community
-- Thanks to all contributors and users
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/NotionMe/Mod-manager/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/NotionMe/Mod-manager/discussions)
-- **Email**: c.ubohyi.stanislav@student.uzhnu.edu.ua
-
-## 🔗 Links
-
-- [GitHub Repository](https://github.com/NotionMe/Mod-manager)
-- [AUR Package](https://aur.archlinux.org/packages/zzz-mod-manager-git)
-- [Zenless Zone Zero](https://zenless.hoyoverse.com/)
-
----
-
-**Enjoy modding!** 🎮✨
+MIT

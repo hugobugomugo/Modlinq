@@ -144,7 +144,13 @@ class ConfigService {
       ? (_prefs.getStringList(_keyWwFavoriteMods) ?? [])
       : (_prefs.getStringList(_keyFavoriteMods) ?? []);
   String get theme => _prefs.getString(_keyTheme) ?? 'dark-blue';
-  String get language => _prefs.getString(_keyLanguage) ?? 'en';
+  // dropped locales fall back to english instead of loading nothing
+  String get language {
+    final saved = _prefs.getString(_keyLanguage) ?? 'en';
+    return supportedLanguages.contains(saved) ? saved : 'en';
+  }
+
+  static const List<String> supportedLanguages = ['en'];
   bool get isFirstRun => _prefs.getBool(_keyFirstRun) ?? true;
   bool get persistModSettings => _prefs.getBool(_keyPersistModSettings) ?? true;
 

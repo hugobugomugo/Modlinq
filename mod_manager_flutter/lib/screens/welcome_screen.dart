@@ -273,7 +273,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
   Widget _buildLanguageStep(AppLocalizations loc, bool isDarkMode) {
     final languageOptions = {
       'en': loc.t('language_names.en'),
-      'uk': loc.t('language_names.uk'),
     };
 
     return Center(

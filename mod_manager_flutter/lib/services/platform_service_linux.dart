@@ -234,11 +234,6 @@ class LinuxPlatformService implements PlatformService {
         return downloadsDir;
       }
       
-      final ukDownloadsDir = path.join(homeDir, 'Завантаження');
-      if (Directory(ukDownloadsDir).existsSync()) {
-        return ukDownloadsDir;
-      }
-      
       return downloadsDir;
     } catch (e) {
       print('LinuxPlatformService: could not resolve downloads dir: $e');

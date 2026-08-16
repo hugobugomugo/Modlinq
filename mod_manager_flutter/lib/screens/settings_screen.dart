@@ -461,7 +461,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   Widget _buildLanguageSelector(AppLocalizations loc, bool isDarkMode) {
     final languageItems = {
       'en': loc.t('language_names.en'),
-      'uk': loc.t('language_names.uk'),
     };
 
     return _buildSettingRow(

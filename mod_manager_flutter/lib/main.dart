@@ -95,7 +95,7 @@ class _MyAppState extends ConsumerState<MyApp> {
 
     return MaterialApp(
       locale: locale,
-      supportedLocales: const [Locale('en'), Locale('uk')],
+      supportedLocales: const [Locale('en')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

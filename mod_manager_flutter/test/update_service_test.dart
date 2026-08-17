@@ -48,6 +48,28 @@ void main() {
       expect(UpdateService.isNewer('2.1.0-beta.1', '2.1.0'), isFalse);
       expect(UpdateService.isNewer('2.1.0-beta.2', '2.1.0-beta.1'), isTrue);
     });
+
+    test('prerelease counters compare as numbers, not strings', () {
+      expect(UpdateService.isNewer('2.1.0-dev.10', '2.1.0-dev.9'), isTrue);
+      expect(UpdateService.isNewer('2.1.0-dev.9', '2.1.0-dev.10'), isFalse);
+      expect(UpdateService.isNewer('2.1.0-dev.100', '2.1.0-dev.99'), isTrue);
+      expect(UpdateService.isNewer('2.1.0-dev.2', '2.1.0-dev.2'), isFalse);
+    });
+
+    test('numeric identifiers rank below alphanumeric ones', () {
+      expect(UpdateService.isNewer('2.1.0-beta', '2.1.0-1'), isTrue);
+      expect(UpdateService.isNewer('2.1.0-1', '2.1.0-beta'), isFalse);
+    });
+
+    test('a longer tail outranks a shorter identical prefix', () {
+      expect(UpdateService.isNewer('2.1.0-dev.1.1', '2.1.0-dev.1'), isTrue);
+      expect(UpdateService.isNewer('2.1.0-dev.1', '2.1.0-dev.1.1'), isFalse);
+    });
+
+    test('a stable release still beats any dev build of the same core', () {
+      expect(UpdateService.isNewer('2.1.0', '2.1.0-dev.99'), isTrue);
+      expect(UpdateService.isNewer('2.1.0-dev.99', '2.1.0'), isFalse);
+    });
   });
 
   group('checksum file', () {

@@ -53,7 +53,31 @@ class UpdateService {
     // same core: a release beats a prerelease, otherwise compare tails
     if (rp.isEmpty && cp.isNotEmpty) return true;
     if (rp.isNotEmpty && cp.isEmpty) return false;
-    return rp.compareTo(cp) > 0;
+    return comparePrerelease(rp, cp) > 0;
+  }
+
+  /// semver prerelease ordering: dot-separated identifiers, numeric ones
+  /// compared as numbers so dev.10 outranks dev.9, numeric below alphanumeric,
+  /// and a longer tail outranks a shorter identical prefix
+  static int comparePrerelease(String a, String b) {
+    if (a == b) return 0;
+    final as = a.split('.');
+    final bs = b.split('.');
+    for (var i = 0; i < as.length && i < bs.length; i++) {
+      final an = int.tryParse(as[i]);
+      final bn = int.tryParse(bs[i]);
+      if (an != null && bn != null) {
+        if (an != bn) return an.compareTo(bn);
+      } else if (an != null) {
+        return -1;
+      } else if (bn != null) {
+        return 1;
+      } else {
+        final c = as[i].compareTo(bs[i]);
+        if (c != 0) return c;
+      }
+    }
+    return as.length.compareTo(bs.length);
   }
 
   /// release asset suffix for the running platform

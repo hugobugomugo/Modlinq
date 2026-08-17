@@ -71,6 +71,7 @@
             "favorites_removed": "Removed from favorites",
             "list_refreshed": "Mod list refreshed",
             "photo_updated": "Image updated",
+            "photo_removed": "Image removed",
             "clipboard_empty": "Clipboard is empty",
             "import_no_folders": "Please drop mod folders",
             "import_duplicates": "Mods already exist or an error occurred",
@@ -126,6 +127,7 @@
         "context_menu": {
             "edit": "Edit",
             "add_image": "Add image",
+            "remove_image": "Remove image",
             "favorite_add": "Add to favorites",
             "favorite_remove": "Remove from favorites",
             "activate": "Activate",

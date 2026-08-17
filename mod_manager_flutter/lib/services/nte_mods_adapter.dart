@@ -93,6 +93,8 @@ class NteModsAdapter {
   void setImage(ModInfo mod, List<int> bytes, {String extension = 'png'}) =>
       manager.setPreviewImage(mod.id, bytes, extension: extension);
 
+  bool clearImage(ModInfo mod) => manager.clearPreviewImage(mod.id);
+
   /// Moves a mod into a category.
   ///
   /// Dropping onto unknown clears the assignment, which hands the mod back to

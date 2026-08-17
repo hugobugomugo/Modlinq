@@ -109,6 +109,28 @@ void main() {
       expect(images, ['preview.png']);
     });
 
+    test('clearing a preview removes it and leaves the payload alone', () {
+      addMod('WithArt', ['a.pak']);
+      library.setPreviewImage('WithArt', [1, 2, 3]);
+      expect(library.previewImageFor('WithArt'), isNotNull);
+
+      expect(library.clearPreviewImage('WithArt'), isTrue);
+
+      expect(library.previewImageFor('WithArt'), isNull);
+      final left = Directory(p.join(library.rootPath, 'WithArt'))
+          .listSync()
+          .whereType<File>()
+          .map((f) => p.basename(f.path))
+          .toList();
+      expect(left, ['a.pak']);
+    });
+
+    test('clearing a preview that does not exist reports nothing removed', () {
+      addMod('NoArt', ['a.pak']);
+      expect(library.clearPreviewImage('NoArt'), isFalse);
+      expect(library.clearPreviewImage('MissingMod'), isFalse);
+    });
+
     test('a preview image is never treated as installable payload', () {
       addMod('WithArt', ['a.pak']);
       library.setPreviewImage('WithArt', [1]);

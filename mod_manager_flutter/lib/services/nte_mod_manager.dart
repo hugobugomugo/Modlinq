@@ -172,6 +172,8 @@ class NteModManager {
 
   String? previewImageFor(String modName) => library.previewImageFor(modName);
 
+  bool clearPreviewImage(String modName) => library.clearPreviewImage(modName);
+
   /// Imports mod folders and zip archives into the library.
   ///
   /// Returns the imported mods; [skipped] collects sources that held no

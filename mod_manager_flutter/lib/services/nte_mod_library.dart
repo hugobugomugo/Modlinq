@@ -217,6 +217,21 @@ class NteModLibrary {
     return images.isEmpty ? null : images.first;
   }
 
+  /// removes a mod's preview images, returns true if anything was deleted
+  bool clearPreviewImage(String name) {
+    final dir = Directory(p.join(rootPath, name));
+    if (!dir.existsSync()) return false;
+
+    var removed = false;
+    for (final file in dir.listSync().whereType<File>()) {
+      if (isPreviewImage(p.basename(file.path))) {
+        file.deleteSync();
+        removed = true;
+      }
+    }
+    return removed;
+  }
+
   /// Replaces a mod's preview image with [imageBytes].
   ///
   /// Existing previews are removed so the newest image is always the one shown.

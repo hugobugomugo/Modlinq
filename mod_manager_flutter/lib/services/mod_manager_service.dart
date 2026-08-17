@@ -5,6 +5,7 @@ import '../models/character_info.dart';
 import '../models/keybind_info.dart';
 import '../core/constants.dart';
 import '../utils/state_providers.dart';
+import '../utils/path_helper.dart';
 import 'config_service.dart';
 import 'platform_service.dart';
 import 'platform_service_factory.dart';
@@ -463,6 +464,12 @@ class ModManagerService {
 
   Future<String?> _findModImage(String modName) async {
     try {
+      // user-set image wins over whatever the mod folder ships
+      final override = File(
+        path.join(PathHelper.getModImagesPath(), '$modName.png'),
+      );
+      if (await override.exists()) return override.path;
+
       final modPath = path.join(modsPath!, modName);
       final modDir = Directory(modPath);
       if (!await modDir.exists()) return null;
@@ -476,6 +483,22 @@ class ModManagerService {
       return null;
     } catch (e) {
       return null;
+    }
+  }
+
+  /// deletes the user-set image so the mod folder image applies again
+  Future<bool> clearModImage(String modName) async {
+    try {
+      final override = File(
+        path.join(PathHelper.getModImagesPath(), '$modName.png'),
+      );
+      if (await override.exists()) {
+        await override.delete();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 

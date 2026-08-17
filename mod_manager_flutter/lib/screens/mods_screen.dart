@@ -906,6 +906,33 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
   }
 
+  Future<void> _removeModImage(ModInfo mod) async {
+    try {
+      if (ref.read(selectedGameProvider) == GameType.nte) {
+        _nteAdapter?.clearImage(mod);
+        imageCache.clear();
+        imageCache.clearLiveImages();
+        await _loadNteMods(showLoading: false);
+        _showSnack(loc.t('mods.snackbar.photo_removed'));
+        return;
+      }
+
+      final service = await ApiService.getModManagerService();
+      await service.clearModImage(mod.id);
+
+      imageCache.clear();
+      imageCache.clearLiveImages();
+
+      await _refreshModsList();
+      _showSnack(loc.t('mods.snackbar.photo_removed'));
+    } catch (e) {
+      _showSnack(
+        loc.t('mods.errors.generic', params: {'message': '$e'}),
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _pasteImageFromClipboard(ModInfo mod) async {
     if (ref.read(selectedGameProvider) == GameType.nte) {
       await _setNteImageFromClipboard(mod);
@@ -1676,6 +1703,19 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             Future.delayed(Duration.zero, () => _pasteImageFromClipboard(mod));
           },
         ),
+        if (mod.imagePath != null)
+          PopupMenuItem(
+            child: Row(
+              children: [
+                const Icon(Icons.hide_image_outlined, size: 18),
+                const SizedBox(width: 8),
+                Text(loc.t('mods.context_menu.remove_image')),
+              ],
+            ),
+            onTap: () {
+              Future.delayed(Duration.zero, () => _removeModImage(mod));
+            },
+          ),
         if (mod.keybinds != null && mod.keybinds!.isNotEmpty)
           PopupMenuItem(
             child: Row(

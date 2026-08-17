@@ -176,6 +176,9 @@ class UpdateService {
   }
 
   Future<String?> fetchExpectedChecksum(UpdateInfo info) async {
+    // release body carries the sums as text, asset file is the fallback
+    final fromNotes = parseChecksums(info.notes)[info.assetName];
+    if (fromNotes != null) return fromNotes;
     if (info.checksumUrl == null) return null;
     final res = await _client.get(
       Uri.parse(info.checksumUrl!),

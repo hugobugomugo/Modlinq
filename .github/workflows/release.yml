@@ -104,11 +104,21 @@ jobs:
           cd dist
           sha256sum *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
+          {
+            echo 'RELEASE_BODY<<GHEOF'
+            echo '### sha256'
+            echo ''
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+            echo 'GHEOF'
+          } >> "$GITHUB_ENV"
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.version.outputs.version }}
           name: v${{ needs.version.outputs.version }}
+          body: ${{ env.RELEASE_BODY }}
           generate_release_notes: true
           files: |
             dist/*.zip

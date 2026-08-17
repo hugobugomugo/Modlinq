@@ -18,13 +18,14 @@ class UpdateDialog extends StatefulWidget {
   static Future<void> maybeShow(
     BuildContext context, {
     UpdateService? service,
+    bool testChannel = false,
   }) async {
     final svc = service ?? UpdateService();
     if (await UpdateService.detectInstallKind() == InstallKind.managed) return;
 
     UpdateInfo? info;
     try {
-      info = await svc.checkForUpdate();
+      info = await svc.checkForUpdate(includePrereleases: testChannel);
     } catch (_) {
       return;
     }

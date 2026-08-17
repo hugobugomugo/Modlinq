@@ -3,6 +3,7 @@ name: release
 on:
   push:
     tags: ['v*']
+    branches: [test]
   workflow_dispatch:
     inputs:
       version:
@@ -17,20 +18,62 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      build: ${{ steps.v.outputs.build }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
       - id: v
         run: |
+          set -eu
+          pubver() { grep -m1 '^version:' | sed 's/^version:[[:space:]]*//' | cut -d+ -f1; }
+
           if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            v="${{ github.event.inputs.version }}"
+            echo "version=$v"     >> "$GITHUB_OUTPUT"
+            echo "tag=v$v"        >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "build=true"     >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+            echo "version=$v"     >> "$GITHUB_OUTPUT"
+            echo "tag=v$v"        >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "build=true"     >> "$GITHUB_OUTPUT"
           else
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            # dev build off test, only when the pubspec version actually moved
+            new=$(pubver < mod_manager_flutter/pubspec.yaml)
+            old=$(git show HEAD~1:mod_manager_flutter/pubspec.yaml 2>/dev/null | pubver || true)
+            echo "pubspec version: '$old' -> '$new'"
+            if [ "$new" = "$old" ]; then
+              echo "unchanged, skipping build"
+              echo "build=false" >> "$GITHUB_OUTPUT"
+            else
+              v="$new-dev.${{ github.run_number }}"
+              echo "version=$v"    >> "$GITHUB_OUTPUT"
+              echo "tag=v$v"       >> "$GITHUB_OUTPUT"
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+              echo "build=true"    >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   linux:
     needs: version
+    if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: stamp dev version
+        if: needs.version.outputs.prerelease == 'true'
+        shell: bash
+        run: |
+          sed -i "s|^const String appVersion = .*|const String appVersion = '${{ needs.version.outputs.version }}';|" \
+            mod_manager_flutter/lib/core/app_version.dart
+          cat mod_manager_flutter/lib/core/app_version.dart
 
       - name: install linux build deps
         run: |
@@ -62,9 +105,18 @@ jobs:
 
   windows:
     needs: version
+    if: needs.version.outputs.build == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: stamp dev version
+        if: needs.version.outputs.prerelease == 'true'
+        shell: bash
+        run: |
+          sed -i "s|^const String appVersion = .*|const String appVersion = '${{ needs.version.outputs.version }}';|" \
+            mod_manager_flutter/lib/core/app_version.dart
+          cat mod_manager_flutter/lib/core/app_version.dart
 
       - uses: subosito/flutter-action@v2
         with:
@@ -90,6 +142,7 @@ jobs:
 
   publish:
     needs: [version, linux, windows]
+    if: needs.version.outputs.build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,9 +169,10 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.version.outputs.version }}
-          name: v${{ needs.version.outputs.version }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
           body: ${{ env.RELEASE_BODY }}
+          prerelease: ${{ needs.version.outputs.prerelease }}
           generate_release_notes: true
           files: |
             dist/*.zip

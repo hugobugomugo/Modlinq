@@ -26,6 +26,7 @@ class ConfigService {
   static const String _keyWwFavoriteMods = 'favorite_mods_ww';
   static const String _keyFirstRun = 'first_run';
   static const String _keyPersistModSettings = 'persist_mod_settings';
+  static const String _keyTestChannel = 'test_channel';
   static const String _keyModPersistStates = 'mod_persist_states';
 
   final SharedPreferences _prefs;
@@ -153,6 +154,19 @@ class ConfigService {
   static const List<String> supportedLanguages = ['en'];
   bool get isFirstRun => _prefs.getBool(_keyFirstRun) ?? true;
   bool get persistModSettings => _prefs.getBool(_keyPersistModSettings) ?? true;
+
+  /// opt in to prerelease dev builds published off the test branch
+  bool get testChannel => _prefs.getBool(_keyTestChannel) ?? false;
+
+  Future<bool> setTestChannel(bool value) async {
+    try {
+      await _prefs.setBool(_keyTestChannel, value);
+      await _saveToFile();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   Future<bool> setPersistModSettings(bool value) async {
     try {

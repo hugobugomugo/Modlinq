@@ -28,6 +28,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   String _selectedLanguage = 'en';
   bool _isUpdatingLanguage = false;
   bool _persistModSettings = true;
+  bool _testChannel = false;
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -74,6 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         _nteLibraryPathController.text = NteModManager.resolveLibraryPath(configService);
         _selectedLanguage = config['language'] ?? 'en';
         _persistModSettings = configService.persistModSettings;
+        _testChannel = configService.testChannel;
         isLoading = false;
       });
     } catch (e) {
@@ -380,6 +382,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                 padding: const EdgeInsets.symmetric(horizontal: 4),
                                 child: Text(
                                   'When enabled (default), in-game settings changed via keybinds are saved by 3DMigoto and restored when you switch back to a mod. Disable to always reset to defaults on deactivation.',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Updates'),
+                              const SizedBox(height: 16),
+                              _buildSettingRow(
+                                label: 'Receive test builds',
+                                isDarkMode: isDarkMode,
+                                trailing: Switch(
+                                  value: _testChannel,
+                                  onChanged: (value) async {
+                                    setState(() => _testChannel = value);
+                                    final configService = await ApiService.getConfigService();
+                                    await configService.setTestChannel(value);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text(
+                                  'Off by default, which means only stable releases. Enable to also receive prerelease dev builds published from the test branch. Dev builds are less tested and a stable release always supersedes them.',
                                   style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
                                 ),
                               ),

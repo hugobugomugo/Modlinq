@@ -222,8 +222,11 @@ class _MainScreenState extends ConsumerState<MainScreen>
     _logoAnimationController.forward();
     _sidebarAnimationController.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) UpdateDialog.maybeShow(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final config = await ApiService.getConfigService();
+      if (mounted) {
+        UpdateDialog.maybeShow(context, testChannel: config.testChannel);
+      }
     });
   }
 

@@ -23,6 +23,10 @@ class UpdateService {
   static const String latestReleaseUrl =
       'https://api.github.com/repos/$repoSlug/releases/latest';
 
+  /// full list, newest first, prereleases included
+  static const String releasesUrl =
+      'https://api.github.com/repos/$repoSlug/releases?per_page=20';
+
   final http.Client _client;
 
   UpdateService({http.Client? client}) : _client = client ?? http.Client();
@@ -126,9 +130,15 @@ class UpdateService {
 
   // ---- network ----
 
-  Future<UpdateInfo?> checkForUpdate({String current = appVersion}) async {
+  /// [includePrereleases] switches to the test channel, which sees dev builds.
+  /// the stable endpoint already hides prereleases, so stable users are
+  /// unaffected either way.
+  Future<UpdateInfo?> checkForUpdate({
+    String current = appVersion,
+    bool includePrereleases = false,
+  }) async {
     final res = await _client.get(
-      Uri.parse(latestReleaseUrl),
+      Uri.parse(includePrereleases ? releasesUrl : latestReleaseUrl),
       headers: const {
         'Accept': 'application/vnd.github+json',
         'User-Agent': 'modlinq-updater',
@@ -136,7 +146,25 @@ class UpdateService {
     );
     if (res.statusCode != 200) return null;
 
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) {
+      return _toUpdateInfo(decoded as Map<String, dynamic>, current);
+    }
+
+    // newest usable release wins, drafts skipped
+    UpdateInfo? best;
+    for (final entry in decoded.cast<Map<String, dynamic>>()) {
+      if (entry['draft'] == true) continue;
+      final candidate = _toUpdateInfo(entry, current);
+      if (candidate == null) continue;
+      if (best == null || isNewer(candidate.version, best.version)) {
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  UpdateInfo? _toUpdateInfo(Map<String, dynamic> json, String current) {
     final tag = (json['tag_name'] ?? '') as String;
     if (tag.isEmpty) return null;
 

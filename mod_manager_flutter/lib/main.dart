@@ -14,6 +14,7 @@ import 'screens/welcome_screen.dart';
 import 'screens/marketplace_screen.dart';
 import 'utils/state_providers.dart';
 import 'services/api_service.dart';
+import 'core/app_version.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/components/update_dialog.dart';
 
@@ -488,7 +489,7 @@ class _MainScreenState extends ConsumerState<MainScreen>
                                 ),
                               ),
                               child: Text(
-                                'v1.0.2',
+                                'v$appVersion',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey[500],

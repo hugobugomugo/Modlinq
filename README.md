@@ -1,8 +1,22 @@
+<div align="center">
+
 # Modlinq
 
-Mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness. Linux and Windows, built with Flutter.
+**One mod manager for Zenless Zone Zero, Wuthering Waves and Neverness to Everness.**
+**Symlink-based, so nothing is copied and your originals are never touched.**
 
-Mods are activated with symbolic links, so nothing is copied and the original files in your library are never modified.
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6qhjDDkANC)
+[![Download](https://img.shields.io/github/v/release/hugobugomugo/Modlinq?style=for-the-badge&label=Download&color=0EA5E9)](https://github.com/hugobugomugo/Modlinq/releases/latest)
+
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
+![Flutter](https://img.shields.io/badge/Flutter-3.44.8-02569B?logo=flutter&logoColor=white)
+[![License](https://img.shields.io/github/license/hugobugomugo/Modlinq)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/hugobugomugo/Modlinq/total)](https://github.com/hugobugomugo/Modlinq/releases)
+
+</div>
+
+> [!TIP]
+> Modlinq updates itself. When a new release lands you get a prompt inside the app, it verifies the download against its sha256, swaps the install and restarts. No manual re-download.
 
 ## Supported games
 
@@ -11,6 +25,16 @@ Mods are activated with symbolic links, so nothing is copied and the original fi
 | Zenless Zone Zero | 3DMigoto / XXMI | manual path |
 | Wuthering Waves | 3DMigoto / XXMI | manual path |
 | Neverness to Everness | native | automatic (Steam, Wine and Proton prefixes) |
+
+## Screenshots
+
+![Mod grid with character filter](docs/screenshots/mods-grid.png)
+
+Mods grouped by character, enabled and disabled with a click. The sidebar switches between ZZZ, WW and NTE; each game keeps its own roster, paths and settings.
+
+## Community
+
+Questions, mod help, bug reports and release pings: [discord.gg/6qhjDDkANC](https://discord.gg/6qhjDDkANC)
 
 ## Features
 

@@ -287,7 +287,17 @@
             "save_mods_label": "Links folder",
             "save_mods_hint": "Path where symlinks will be created",
             "browse": "Browse",
-            "validation_error": "Please specify both directories"
+            "validation_error": "Please specify both directories",
+            "tabs_hint": "Set up only the games you play. Anything left blank can be configured later in Settings.",
+            "nte_game_label": "Game folder",
+            "nte_game_hint": "Neverness to Everness install directory",
+            "nte_library_label": "Mod library folder",
+            "nte_library_hint": "Where downloaded NTE mods are kept",
+            "detect": "Detect",
+            "detect_found": "Found install at {path}",
+            "detect_none": "No install found, pick the folder manually",
+            "configured": "Configured",
+            "not_configured": "Not set up"
         },
         "complete": {
             "title": "All set!",
@@ -297,7 +307,8 @@
         "actions": {
             "next": "Next",
             "back": "Back",
-            "finish": "Finish"
+            "finish": "Finish",
+            "skip": "Skip for now"
         }
     },
     "nte": {

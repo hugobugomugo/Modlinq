@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
+import '../services/nte_game_detection.dart';
 import '../utils/state_providers.dart';
 import '../l10n/app_localizations.dart';
 
@@ -22,7 +23,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
   String _selectedLanguage = 'en';
   final _modsPathController = TextEditingController();
   final _saveModsPathController = TextEditingController();
-  
+  final _wwModsPathController = TextEditingController();
+  final _wwSaveModsPathController = TextEditingController();
+  final _nteGamePathController = TextEditingController();
+  final _nteLibraryPathController = TextEditingController();
+  late TabController _gameTabController;
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late AnimationController _slideController;
@@ -48,9 +54,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
     
+    _gameTabController = TabController(length: GameType.values.length, vsync: this);
+
     _fadeController.forward();
     _slideController.forward();
-    
+
     _selectedLanguage = ref.read(localeProvider).languageCode;
   }
 
@@ -58,8 +66,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
+    _gameTabController.dispose();
     _modsPathController.dispose();
     _saveModsPathController.dispose();
+    _wwModsPathController.dispose();
+    _wwSaveModsPathController.dispose();
+    _nteGamePathController.dispose();
+    _nteLibraryPathController.dispose();
     super.dispose();
   }
 
@@ -89,26 +102,37 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
     }
   }
 
+  /// saves whatever the user filled in; every game is optional and anything
+  /// left blank stays unset so it can be configured later in settings
   Future<void> _completeSetup() async {
-    final loc = context.loc;
-    
-    if (_modsPathController.text.isEmpty || _saveModsPathController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(loc.t('welcome.directories.validation_error')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     try {
       await ApiService.setLanguage(_selectedLanguage);
-      await ApiService.updateConfig(
-        modsPath: _modsPathController.text,
-        saveModsPath: _saveModsPathController.text,
-      );
-      
+
+      final config = await ApiService.getConfigService();
+
+      if (_modsPathController.text.isNotEmpty &&
+          _saveModsPathController.text.isNotEmpty) {
+        await config.setZzzPaths(
+          _modsPathController.text,
+          _saveModsPathController.text,
+        );
+      }
+
+      if (_wwModsPathController.text.isNotEmpty &&
+          _wwSaveModsPathController.text.isNotEmpty) {
+        await config.setWwPaths(
+          _wwModsPathController.text,
+          _wwSaveModsPathController.text,
+        );
+      }
+
+      if (_nteGamePathController.text.isNotEmpty) {
+        await config.setNteGamePath(_nteGamePathController.text);
+      }
+      if (_nteLibraryPathController.text.isNotEmpty) {
+        await config.setNteLibraryPath(_nteLibraryPathController.text);
+      }
+
       widget.onComplete();
     } catch (e) {
       if (mounted) {
@@ -135,6 +159,46 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
       setState(() => _saveModsPathController.text = result);
     }
   }
+
+  Future<void> _pickInto(TextEditingController controller) async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null) {
+      setState(() => controller.text = result);
+    }
+  }
+
+  Future<void> _detectNteInstall() async {
+    final loc = context.loc;
+    final install = NteGameDetection.autoDetect();
+    if (!mounted) return;
+
+    if (install.valid) {
+      setState(() => _nteGamePathController.text = install.path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            loc.t('welcome.directories.detect_found', params: {'path': install.path}),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(loc.t('welcome.directories.detect_none')),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  bool _isConfigured(GameType game) => switch (game) {
+    GameType.zzz => _modsPathController.text.isNotEmpty &&
+        _saveModsPathController.text.isNotEmpty,
+    GameType.wutheringWaves => _wwModsPathController.text.isNotEmpty &&
+        _wwSaveModsPathController.text.isNotEmpty,
+    GameType.nte => _nteGamePathController.text.isNotEmpty,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -439,28 +503,119 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 48),
-              _buildPathField(
-                label: loc.t('welcome.directories.mods_label'),
-                hint: loc.t('welcome.directories.mods_hint'),
-                controller: _modsPathController,
-                onBrowse: _pickModsPath,
-                isDarkMode: isDarkMode,
-                loc: loc,
+              const SizedBox(height: 16),
+              Text(
+                loc.t('welcome.directories.tabs_hint'),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              _buildPathField(
-                label: loc.t('welcome.directories.save_mods_label'),
-                hint: loc.t('welcome.directories.save_mods_hint'),
-                controller: _saveModsPathController,
-                onBrowse: _pickSaveModsPath,
-                isDarkMode: isDarkMode,
-                loc: loc,
+              TabBar(
+                controller: _gameTabController,
+                labelColor: const Color(0xFF0EA5E9),
+                unselectedLabelColor: Colors.grey[600],
+                indicatorColor: const Color(0xFF0EA5E9),
+                tabs: [
+                  for (final game in GameType.values)
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _isConfigured(game)
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            size: 14,
+                            color: _isConfigured(game)
+                                ? Colors.green
+                                : Colors.grey[500],
+                          ),
+                          const SizedBox(width: 6),
+                          Text(game.shortLabel),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 260,
+                child: TabBarView(
+                  controller: _gameTabController,
+                  children: [
+                    for (final game in GameType.values)
+                      SingleChildScrollView(
+                        child: _buildGameTab(game, loc, isDarkMode),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGameTab(GameType game, AppLocalizations loc, bool isDarkMode) {
+    if (game == GameType.nte) {
+      return Column(
+        children: [
+          _buildPathField(
+            label: loc.t('welcome.directories.nte_game_label'),
+            hint: loc.t('welcome.directories.nte_game_hint'),
+            controller: _nteGamePathController,
+            onBrowse: () => _pickInto(_nteGamePathController),
+            isDarkMode: isDarkMode,
+            loc: loc,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _detectNteInstall,
+              icon: const Icon(Icons.search, size: 18),
+              label: Text(loc.t('welcome.directories.detect')),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildPathField(
+            label: loc.t('welcome.directories.nte_library_label'),
+            hint: loc.t('welcome.directories.nte_library_hint'),
+            controller: _nteLibraryPathController,
+            onBrowse: () => _pickInto(_nteLibraryPathController),
+            isDarkMode: isDarkMode,
+            loc: loc,
+          ),
+        ],
+      );
+    }
+
+    final isZzz = game == GameType.zzz;
+    return Column(
+      children: [
+        _buildPathField(
+          label: '${game.displayName} — ${loc.t('welcome.directories.mods_label')}',
+          hint: loc.t('welcome.directories.mods_hint'),
+          controller: isZzz ? _modsPathController : _wwModsPathController,
+          onBrowse: isZzz
+              ? _pickModsPath
+              : () => _pickInto(_wwModsPathController),
+          isDarkMode: isDarkMode,
+          loc: loc,
+        ),
+        const SizedBox(height: 24),
+        _buildPathField(
+          label: '${game.displayName} — ${loc.t('welcome.directories.save_mods_label')}',
+          hint: loc.t('welcome.directories.save_mods_hint'),
+          controller: isZzz ? _saveModsPathController : _wwSaveModsPathController,
+          onBrowse: isZzz
+              ? _pickSaveModsPath
+              : () => _pickInto(_wwSaveModsPathController),
+          isDarkMode: isDarkMode,
+          loc: loc,
+        ),
+      ],
     );
   }
 
@@ -631,16 +786,29 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
             )
           else
             const SizedBox(),
-          Text(
-            loc.t('welcome.step_of', params: {
-              'current': '${_currentStep + 1}',
-              'total': '$_totalSteps',
-            }),
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                loc.t('welcome.step_of', params: {
+                  'current': '${_currentStep + 1}',
+                  'total': '$_totalSteps',
+                }),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 16),
+              TextButton(
+                onPressed: _completeSetup,
+                child: Text(
+                  loc.t('welcome.actions.skip'),
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            ],
           ),
           FilledButton.icon(
             onPressed: _nextStep,

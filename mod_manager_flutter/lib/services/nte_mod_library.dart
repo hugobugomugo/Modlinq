@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/nte_mod.dart';
+import 'archive_formats.dart';
+import 'archive_service.dart';
 
 /// Owns the app-managed folder that stores imported NTE mods.
 ///
@@ -32,11 +33,12 @@ class NteModLibrary {
     return name != 'icon.png';
   }
 
-  /// Archive types the importer can unpack without external tools.
-  static bool isSupportedArchive(String path) {
-    final ext = p.extension(path).toLowerCase();
-    return ext == '.zip';
-  }
+  /// Archive types the importer accepts.
+  ///
+  /// rar and 7z are included, but they only unpack where a 7-Zip binary
+  /// exists; on a machine without one the import fails with that as the
+  /// reason rather than the format being rejected up front.
+  static bool isSupportedArchive(String path) => ArchiveFormats.isSupported(path);
 
   Directory get _root => Directory(rootPath);
 
@@ -119,16 +121,21 @@ class NteModLibrary {
     return _readMod(target.path);
   }
 
-  /// Unpacks a zip archive into the library.
+  /// Unpacks an archive into the library.
   ///
   /// Archives that contain one top-level folder are flattened so the mod is
   /// not nested twice. Returns null when nothing installable was found.
-  NteMod? importArchive(String archivePath, {String? nameOverride}) {
+  ///
+  /// Async because extraction is: awaiting it is what guarantees every file is
+  /// on disk before the payload check runs.
+  Future<NteMod?> importArchive(String archivePath, {String? nameOverride}) async {
     if (!isSupportedArchive(archivePath)) {
-      throw ArgumentError('Unsupported archive format: ${p.extension(archivePath)}');
+      throw ArgumentError(
+        'Unsupported archive format: .${ArchiveFormats.extensionOf(archivePath)}',
+      );
     }
 
-    final name = nameOverride ?? p.basenameWithoutExtension(archivePath);
+    final name = nameOverride ?? ArchiveFormats.baseNameOf(archivePath);
     final target = Directory(p.join(rootPath, name));
     if (target.existsSync()) {
       throw StateError('A mod named "$name" is already in the library');
@@ -139,7 +146,11 @@ class NteModLibrary {
     )..createSync(recursive: true);
 
     try {
-      extractFileToDisk(archivePath, staging.path);
+      final error = await ArchiveService.unpackInto(
+        archiveFile: File(archivePath),
+        destination: staging,
+      );
+      if (error != null) throw StateError(error);
 
       final contentRoot = _flattenedRoot(staging.path);
       if (!hasInstallablePayload(contentRoot)) return null;

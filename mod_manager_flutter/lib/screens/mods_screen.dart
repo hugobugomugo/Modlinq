@@ -14,6 +14,7 @@ import '../core/constants.dart';
 import '../models/character_info.dart';
 import '../models/keybind_info.dart';
 import '../services/api_service.dart';
+import '../services/archive_formats.dart';
 import '../services/archive_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/path_helper.dart';
@@ -64,6 +65,9 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   // Drag & drop state
   bool _isDragging = false;
 
+  // Whether a 7-Zip binary was found; gates the rar and 7z formats.
+  bool _externalToolAvailable = false;
+
   final FocusNode _focusNode = FocusNode();
   late final ScrollController _modsScrollController = ScrollController();
 
@@ -92,7 +96,16 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
 
     _loadTags();
+    _probeExternalTool();
     loadMods();
+  }
+
+  /// Checks once whether 7-Zip is installed, so rar and 7z are only ever
+  /// offered on machines that can actually open them.
+  Future<void> _probeExternalTool() async {
+    final available = await ArchiveService.isExternalToolAvailable();
+    if (!mounted) return;
+    setState(() => _externalToolAvailable = available);
   }
 
   @override
@@ -1011,14 +1024,88 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     }
   }
 
-  /// Archive types the current game can unpack.
+  /// Archive types that can be unpacked on this machine.
   ///
-  /// NTE unpacks zips itself; the other games go through ArchiveService, which
-  /// also handles rar and 7z when 7-Zip is installed.
+  /// rar and 7z appear only once a 7-Zip binary has actually been found, so
+  /// the user is never offered a format that cannot be opened here.
   List<String> get _supportedArchiveExtensions =>
-      ref.read(selectedGameProvider) == GameType.nte
-          ? const ['zip']
-          : const ['zip', 'rar', '7z'];
+      ArchiveFormats.pickerExtensions(
+        includeExternalTool: _externalToolAvailable,
+      );
+
+  /// Formats as the user sees them, e.g. `.zip, .tar.gz, .rar`.
+  String get _supportedArchiveLabel =>
+      _supportedArchiveExtensions.map((e) => '.$e').join(', ');
+
+  /// Whether [sourcePath] is something the current game can import at all.
+  bool _canImport(String sourcePath) {
+    if (FileSystemEntity.isDirectorySync(sourcePath)) return true;
+    return _supportedArchiveExtensions.contains(
+      ArchiveFormats.extensionOf(sourcePath),
+    );
+  }
+
+  /// Names every file that was dropped but cannot be unpacked, in one dialog.
+  ///
+  /// The format list is the live one, so a machine without 7-Zip explains the
+  /// rejection with the formats that do work there rather than advertising rar.
+  Future<void> _showUnsupportedFormatDialog(List<String> fileNames) async {
+    if (!mounted) return;
+    final loc = context.loc;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.block, color: Colors.orange, size: 22),
+            const SizedBox(width: 10),
+            Expanded(child: Text(loc.t('mods.dialog.unsupported_title'))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(loc.t('mods.dialog.unsupported_body')),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final name in fileNames)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '• $name',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              loc.t(
+                'mods.dialog.unsupported_formats',
+                params: {'formats': _supportedArchiveLabel},
+              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(loc.t('mods.dialog.got_it')),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Lets the user pick a mod folder, then imports it.
   Future<void> _pickModFolder() async {
@@ -1066,14 +1153,23 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             children: [
               const Icon(Icons.archive_outlined, size: 18),
               const SizedBox(width: 8),
-              Text(
-                loc.t(
-                  'mods.add.archive',
-                  params: {
-                    'formats': _supportedArchiveExtensions
-                        .map((e) => '.$e')
-                        .join(', '),
-                  },
+              // The list grew past what fits on one menu line, so the formats
+              // sit underneath the label instead of inside it.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loc.t('mods.add.archive')),
+                    Text(
+                      _supportedArchiveLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1092,7 +1188,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     if (adapter == null || paths.isEmpty) return;
 
     final skipped = <String, String>{};
-    final imported = adapter.manager.import(paths, skipped: skipped);
+    final imported = await adapter.manager.import(paths, skipped: skipped);
 
     await _loadNteMods(showLoading: false);
 
@@ -2495,10 +2591,27 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   Future<void> _importModsFromFolders(List<XFile> files) async {
     if (_isOperationInProgress) return;
 
+    // Drops arrive unfiltered, so anything the current game cannot unpack is
+    // reported once, as a list, instead of failing silently file by file.
+    final rejected = files.where((f) => !_canImport(f.path)).toList();
+    final importable = files.where((f) => _canImport(f.path)).toList();
+
+    if (rejected.isNotEmpty) {
+      setState(() => _isDragging = false);
+      await _showUnsupportedFormatDialog(
+        rejected.map((f) => path.basename(f.path)).toList(),
+      );
+    }
+
+    if (importable.isEmpty) {
+      setState(() => _isDragging = false);
+      return;
+    }
+
     // NTE mods are copied into its own library rather than symlinked.
     if (ref.read(selectedGameProvider) == GameType.nte) {
       setState(() => _isDragging = false);
-      await _importNteMods(files.map((f) => f.path).toList());
+      await _importNteMods(importable.map((f) => f.path).toList());
       return;
     }
 
@@ -2515,7 +2628,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final successfullyExtractedArchives = <String>[];
       final tempFoldersToCleanup = <String>[];
 
-      for (final file in files) {
+      for (final file in importable) {
         if (ArchiveService.isArchiveFile(file.path)) {
           archivesToExtract.add(file);
           print('ModsScreen: found archive: ${file.path}');

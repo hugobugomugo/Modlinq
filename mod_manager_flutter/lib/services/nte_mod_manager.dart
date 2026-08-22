@@ -174,11 +174,14 @@ class NteModManager {
 
   bool clearPreviewImage(String modName) => library.clearPreviewImage(modName);
 
-  /// Imports mod folders and zip archives into the library.
+  /// Imports mod folders and archives into the library.
   ///
   /// Returns the imported mods; [skipped] collects sources that held no
   /// installable files or already existed, with the reason.
-  List<NteMod> import(List<String> paths, {required Map<String, String> skipped}) {
+  Future<List<NteMod>> import(
+    List<String> paths, {
+    required Map<String, String> skipped,
+  }) async {
     final imported = <NteMod>[];
 
     for (final path in paths) {
@@ -188,7 +191,7 @@ class NteModManager {
         if (FileSystemEntity.isDirectorySync(path)) {
           mod = library.importDirectory(path);
         } else if (NteModLibrary.isSupportedArchive(path)) {
-          mod = library.importArchive(path);
+          mod = await library.importArchive(path);
         } else {
           skipped[p.basename(path)] = 'Unsupported file type';
           continue;

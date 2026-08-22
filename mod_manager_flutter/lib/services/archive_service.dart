@@ -1,6 +1,8 @@
 import 'dart:io';
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as path;
+
+import 'archive_formats.dart';
 
 class ArchiveExtractionResult {
   final bool success;
@@ -27,10 +29,15 @@ class ArchiveExtractionResult {
 }
 
 class ArchiveService {
-  static bool isArchiveFile(String filePath) {
-    final extension = path.extension(filePath).toLowerCase();
-    return extension == '.zip' || extension == '.rar' || extension == '.7z';
-  }
+  static bool isArchiveFile(String filePath) =>
+      ArchiveFormats.isSupported(filePath);
+
+  /// Whether a 7-Zip binary is present, which rar and 7z need.
+  ///
+  /// Lets callers hide those formats up front instead of letting the user pick
+  /// a file that cannot be opened on this machine.
+  static Future<bool> isExternalToolAvailable() async =>
+      await _locate7Zip() != null;
 
   static Future<ArchiveExtractionResult> extractArchive({
     required File archiveFile,
@@ -42,22 +49,12 @@ class ArchiveService {
       final tempExtractDir = destinationDir ??
           await Directory.systemTemp.createTemp('zzz_archive_extract_');
 
-      final extension = path.extension(archiveFile.path).toLowerCase();
-      bool isExtracted = false;
-      String? extractionError;
+      final error = await unpackInto(
+        archiveFile: archiveFile,
+        destination: tempExtractDir,
+      );
 
-      if (extension == '.zip') {
-        print('ArchiveService: zip archive');
-        isExtracted = await _extractZip(archiveFile, tempExtractDir);
-      } else if (extension == '.rar' || extension == '.7z') {
-        print('ArchiveService: rar/7z archive');
-        final result = await _extractWith7Zip(archiveFile, tempExtractDir);
-        isExtracted = result.success;
-        extractionError = result.error;
-      }
-
-      if (!isExtracted) {
-        final error = extractionError ?? 'archive format not supported';
+      if (error != null) {
         print('ArchiveService: error: $error');
         return ArchiveExtractionResult.failure(error);
       }
@@ -78,6 +75,36 @@ class ArchiveService {
       print('ArchiveService: exception: $e');
       return ArchiveExtractionResult.failure('extraction failed: $e');
     }
+  }
+
+  /// Unpacks [archiveFile] into [destination], leaving the layout untouched.
+  ///
+  /// Returns null on success or the reason it failed. This is the one place
+  /// that knows which format needs which unpacker, so the NTE library shares
+  /// it instead of keeping a second, narrower list of its own.
+  static Future<String?> unpackInto({
+    required File archiveFile,
+    required Directory destination,
+  }) async {
+    final extension = ArchiveFormats.extensionOf(archiveFile.path);
+
+    if (extension == 'zip') {
+      print('ArchiveService: zip archive');
+      final extracted = await _extractZip(archiveFile, destination);
+      return extracted ? null : 'could not extract archive';
+    }
+
+    if (ArchiveFormats.isNative(archiveFile.path)) {
+      print('ArchiveService: tar archive ($extension)');
+      return (await _extractTar(archiveFile, destination)).error;
+    }
+
+    if (ArchiveFormats.needsExternalTool(archiveFile.path)) {
+      print('ArchiveService: rar/7z archive');
+      return (await _extractWith7Zip(archiveFile, destination)).error;
+    }
+
+    return 'archive format not supported';
   }
 
   static Future<bool> _extractZip(File archiveFile, Directory destination) async {
@@ -119,13 +146,31 @@ class ArchiveService {
     }
   }
 
-  static Future<_7ZipResult> _extractWith7Zip(
+  /// Unpacks tar and the compressed tarballs, none of which need a tool.
+  ///
+  /// `extractFileToDisk` decides the codec from the file name, so the name has
+  /// to survive: a mod called `Skin.tar.gz` must not reach here as `Skin.gz`.
+  static Future<_ExtractionOutcome> _extractTar(
+    File archiveFile,
+    Directory destination,
+  ) async {
+    try {
+      await extractFileToDisk(archiveFile.path, destination.path);
+      print('ArchiveService: tar extraction ok');
+      return const _ExtractionOutcome(true);
+    } catch (e) {
+      print('ArchiveService: tar extraction failed: $e');
+      return _ExtractionOutcome(false, 'could not extract archive: $e');
+    }
+  }
+
+  static Future<_ExtractionOutcome> _extractWith7Zip(
     File archiveFile,
     Directory destination,
   ) async {
     final sevenZipPath = await _locate7Zip();
     if (sevenZipPath == null) {
-      return _7ZipResult(
+      return _ExtractionOutcome(
         false,
         '7-zip not found. install 7-zip to extract rar/7z.',
       );
@@ -143,14 +188,14 @@ class ArchiveService {
     if (result.exitCode != 0) {
       final errorOutput = result.stderr.toString().trim();
       print('ArchiveService: 7-zip error: $errorOutput');
-      return _7ZipResult(
+      return _ExtractionOutcome(
         false,
         errorOutput.isNotEmpty ? errorOutput : 'could not extract archive',
       );
     }
 
     print('ArchiveService: 7-zip extraction ok');
-    return const _7ZipResult(true);
+    return const _ExtractionOutcome(true);
   }
 
   static Future<String?> _locate7Zip() async {
@@ -226,7 +271,7 @@ class ArchiveService {
 
     final dirEntries = entries.whereType<Directory>().toList();
     if (dirEntries.isEmpty) {
-      final baseName = path.basenameWithoutExtension(archiveFile.path);
+      final baseName = ArchiveFormats.baseNameOf(archiveFile.path);
       final wrapperDir = Directory(path.join(extractDir.path, baseName));
       await wrapperDir.create(recursive: true);
 
@@ -266,9 +311,9 @@ class ArchiveService {
   }
 }
 
-class _7ZipResult {
+class _ExtractionOutcome {
   final bool success;
   final String? error;
 
-  const _7ZipResult(this.success, [this.error]);
+  const _ExtractionOutcome(this.success, [this.error]);
 }

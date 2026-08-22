@@ -30,7 +30,11 @@ void main() {
     manager = NteModManager(
       library: library,
       installer: installer,
-      config: ConfigService(await SharedPreferences.getInstance()),
+      // Must stay inside tmp: without it this writes the real user config.
+      config: ConfigService(
+        await SharedPreferences.getInstance(),
+        configDirectory: tmp.path,
+      ),
     );
   });
 

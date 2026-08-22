@@ -32,16 +32,25 @@ class ConfigService {
   final SharedPreferences _prefs;
   File? _configFile;
 
-  ConfigService(this._prefs) {
-    _initConfigFile();
+  /// Creates a config store.
+  ///
+  /// [configDirectory] overrides where `config.json` lives. Tests MUST pass a
+  /// temporary directory: without it the settings land in the real user
+  /// profile, and a single `set...Paths` call in a test is enough to wipe the
+  /// developer's own mod paths, active mods and favourites.
+  ConfigService(this._prefs, {String? configDirectory}) {
+    _initConfigFile(configDirectory);
   }
 
-  void _initConfigFile() {
+  /// Where settings are being written. Exposed so tests can prove isolation.
+  String? get debugConfigFilePath => _configFile?.path;
+
+  void _initConfigFile(String? configDirectory) {
     try {
-      final appDataPath = PathHelper.getAppDataPath();
+      final appDataPath = configDirectory ?? PathHelper.getAppDataPath();
       final configPath = path.join(appDataPath, AppConstants.configFileName);
       _configFile = File(configPath);
-      
+
       final dir = Directory(appDataPath);
       if (!dir.existsSync()) {
         dir.createSync(recursive: true);

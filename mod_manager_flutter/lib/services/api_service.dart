@@ -6,6 +6,7 @@ import '../models/character_info.dart';
 import '../utils/cancellation_token.dart';
 import 'config_service.dart';
 import 'mod_manager_service.dart';
+import 'nte_mod_manager.dart';
 
 class ApiService {
   static ModManagerService? _modManager;
@@ -183,9 +184,21 @@ class ApiService {
     return _modManager!;
   }
 
+  /// Tags every untagged mod of the current game with the character detected
+  /// from its name.
+  ///
+  /// NTE keeps its grouping in its own store rather than the tag map the other
+  /// games use, so it is routed to the library that owns it. Both paths only
+  /// write metadata; no mod files are moved.
   static Future<Map<String, String>> autoTagAllMods() async {
     try {
       await initialize();
+
+      if (_configService!.isNte) {
+        final manager = NteModManager.fromConfig(_configService!);
+        return manager == null ? {} : await manager.autoTagAll();
+      }
+
       return await _modManager!.autoTagAllMods();
     } catch (e) {
       throw Exception('autoTagAllMods error: $e');

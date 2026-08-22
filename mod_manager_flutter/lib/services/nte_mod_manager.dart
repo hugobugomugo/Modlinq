@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/nte_mod.dart';
+import '../utils/nte_characters.dart';
 import '../utils/path_helper.dart';
 import 'config_service.dart';
 import 'nte_mod_installer.dart';
@@ -102,6 +103,31 @@ class NteModManager {
     if (missing.isEmpty) return const NteApplyResult();
 
     return installer.apply(missing, adopted);
+  }
+
+  /// Stores the character detected from each untagged mod's folder name.
+  ///
+  /// Deliberately metadata only: unlike [setCategory] it never reinstalls, so
+  /// running it over a whole library cannot move files the game is using. The
+  /// grid already groups by the same detection, so this only makes the
+  /// grouping explicit and editable.
+  ///
+  /// Returns the tags it added, keyed by mod name.
+  Future<Map<String, String>> autoTagAll() async {
+    final tagged = <String, String>{};
+
+    for (final mod in listMods()) {
+      final existing = mod.category;
+      if (existing != null && existing.isNotEmpty) continue;
+
+      final detected = detectNteCharacter(mod.name);
+      if (detected == null) continue;
+
+      await config.setNteModCategory(mod.name, detected);
+      tagged[mod.name] = detected;
+    }
+
+    return tagged;
   }
 
   /// Moves a mod into [category], or to the root when null. The mod is

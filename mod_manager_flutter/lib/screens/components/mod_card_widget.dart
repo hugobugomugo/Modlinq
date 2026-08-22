@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/character_info.dart';
+import '../../utils/mod_categories.dart';
 
 class ModCardWidget extends StatefulWidget {
   final ModInfo mod;
@@ -24,6 +25,16 @@ class ModCardWidget extends StatefulWidget {
 
 class _ModCardWidgetState extends State<ModCardWidget> {
   bool isHovered = false;
+
+  /// Character to print in the card's corner, or null to print nothing.
+  ///
+  /// ZZZ and WUWA keep hand-set tags in [ModCardWidget.modCharacterTags]; NTE
+  /// keeps none and resolves the character into the mod itself. Reading both
+  /// is what gives all three games the same label.
+  String? get _badgeCharacterId => ModCategories.badgeIdFor(
+    assignedTag: widget.modCharacterTags[widget.mod.id],
+    characterId: widget.mod.characterId,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +246,7 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                           ),
                         ),
                         
-                        if (widget.modCharacterTags.containsKey(widget.mod.id))
+                        if (_badgeCharacterId != null)
                           Positioned(
                             top: 12,
                             left: 12,
@@ -254,7 +265,7 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                                 ],
                               ),
                               child: Text(
-                                widget.getCharacterName(widget.modCharacterTags[widget.mod.id]!),
+                                widget.getCharacterName(_badgeCharacterId!),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,

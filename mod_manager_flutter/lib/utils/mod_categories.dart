@@ -14,4 +14,23 @@ class ModCategories {
   static const Set<String> all = {misc, unknown};
 
   static bool isSpecial(String characterId) => all.contains(characterId);
+
+  /// The character id a mod card should print in its corner, or null when
+  /// there is nothing worth showing.
+  ///
+  /// [assignedTag] is the tag the user set by hand, which ZZZ and WUWA keep in
+  /// their tag map. NTE stores no such tag and instead resolves the character
+  /// from the folder name into [characterId], so the fallback is what gives
+  /// every game the same label.
+  static String? badgeIdFor({
+    required String? assignedTag,
+    required String characterId,
+  }) {
+    final id = (assignedTag != null && assignedTag.isNotEmpty)
+        ? assignedTag
+        : characterId;
+
+    if (id.isEmpty || isSpecial(id)) return null;
+    return id;
+  }
 }

@@ -5,6 +5,7 @@ import '../models/character_info.dart';
 import '../models/keybind_info.dart';
 import '../core/constants.dart';
 import '../utils/state_providers.dart';
+import '../utils/cancellation_token.dart';
 import '../utils/path_helper.dart';
 import 'config_service.dart';
 import 'platform_service.dart';
@@ -72,15 +73,25 @@ class ModManagerService {
     }
   }
 
-  Future<List<ModInfo>> getModsInfo() async {
+  /// Collects display info for every mod in the library.
+  ///
+  /// Each mod costs several filesystem round trips, so a large library takes a
+  /// while. Pass [cancelled] to abandon the scan when the result is no longer
+  /// wanted, such as when the user switches game mid-load; the partial list
+  /// returned in that case is meant to be discarded by the caller.
+  Future<List<ModInfo>> getModsInfo({CancellationToken? cancelled}) async {
     try {
+      if (CancellationToken.isCancelledOrNull(cancelled)) return [];
+
       final modNames = await scanMods();
       final modsInfo = <ModInfo>[];
       final favoriteSet = _configService.favoriteMods.toSet();
 
-      await _cleanupInvalidLinks();
+      await _cleanupInvalidLinks(cancelled: cancelled);
 
       for (final modName in modNames) {
+        if (CancellationToken.isCancelledOrNull(cancelled)) return modsInfo;
+
         final isActive = await isModActive(modName);
         final imagePath = await _findModImage(modName);
 
@@ -102,7 +113,7 @@ class ModManagerService {
     }
   }
 
-  Future<void> _cleanupInvalidLinks() async {
+  Future<void> _cleanupInvalidLinks({CancellationToken? cancelled}) async {
     try {
       if (saveModsPath == null) return;
 
@@ -113,6 +124,9 @@ class ModManagerService {
       final validModNames = Set<String>.from(modNames);
 
       await for (final entity in saveModsDir.list()) {
+        // Stopping midway only leaves stale links for the next load to clear.
+        if (CancellationToken.isCancelledOrNull(cancelled)) return;
+
         if (entity is Link) {
           final linkName = path.basename(entity.path);
           

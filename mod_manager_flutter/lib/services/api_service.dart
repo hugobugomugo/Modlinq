@@ -3,6 +3,7 @@ import 'package:modlinq/utils/state_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/character_info.dart';
+import '../utils/cancellation_token.dart';
 import 'config_service.dart';
 import 'mod_manager_service.dart';
 
@@ -27,10 +28,14 @@ class ApiService {
     _modManager ??= ModManagerService(_configService!, _container!);
   }
 
-  static Future<List<ModInfo>> getMods() async {
+  /// Loads mod info for the current game.
+  ///
+  /// [cancelled] lets a caller abandon a slow scan, for instance when the user
+  /// switches game before it finishes.
+  static Future<List<ModInfo>> getMods({CancellationToken? cancelled}) async {
     try {
       await initialize();
-      return await _modManager!.getModsInfo();
+      return await _modManager!.getModsInfo(cancelled: cancelled);
     } catch (e) {
       throw Exception('getMods error: $e');
     }

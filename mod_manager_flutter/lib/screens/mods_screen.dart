@@ -17,7 +17,9 @@ import '../services/api_service.dart';
 import '../services/archive_formats.dart';
 import '../services/archive_service.dart';
 import '../utils/state_providers.dart';
+import '../utils/cancellation_token.dart';
 import '../utils/path_helper.dart';
+import '../utils/reload_queue.dart';
 import '../l10n/app_localizations.dart';
 import 'components/mode_toggle_widget.dart';
 import 'components/nte_setup_panel.dart';
@@ -57,7 +59,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   // Prevent multiple simultaneous operations
   bool _isOperationInProgress = false;
-  bool _isLoadingMods = false;
+
+  // Serialises mod loads so a game switch during a slow load is deferred
+  // rather than dropped.
+  final ReloadQueue _modReloads = ReloadQueue();
 
   // Cache for preventing unnecessary rebuilds
   List<CharacterInfo>? _lastCharactersState;
@@ -229,6 +234,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
     if (!mounted) return;
 
+    // Same as the other games: a switch made mid-load has queued its own
+    // reload, so these results are already stale.
+    if (_modReloads.isSuperseded) return;
+
     ref.read(charactersProvider.notifier).setValue(characters);
     ref.read(modsProvider.notifier).setValue(mods);
 
@@ -258,22 +267,23 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
   }
 
-  Future<void> loadMods({bool showLoading = true}) async {
-    // Prevent multiple simultaneous load operations
-    if (_isLoadingMods) return;
+  /// Reloads the grid for the currently selected game.
+  ///
+  /// Requests that arrive while a load is running are deferred and replayed,
+  /// so switching game mid-load lands on the game the user picked.
+  Future<void> loadMods({bool showLoading = true}) => _modReloads.run(
+    (cancelled) => _loadModsOnce(showLoading: showLoading, cancelled: cancelled),
+  );
 
+  Future<void> _loadModsOnce({
+    bool showLoading = true,
+    CancellationToken? cancelled,
+  }) async {
     // NTE stores mods as pak/asi files, so it loads through its own backend.
     if (ref.read(selectedGameProvider) == GameType.nte) {
-      _isLoadingMods = true;
-      try {
-        await _loadNteMods(showLoading: showLoading);
-      } finally {
-        _isLoadingMods = false;
-      }
+      await _loadNteMods(showLoading: showLoading);
       return;
     }
-
-    _isLoadingMods = true;
 
     setState(() {
       if (showLoading) {
@@ -283,7 +293,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     });
 
     try {
-      final loadedMods = await ApiService.getMods();
+      final loadedMods = await ApiService.getMods(cancelled: cancelled);
       final configService = await ApiService.getConfigService();
       final favoriteSet = configService.favoriteMods.toSet();
       final currentGame = ref.read(selectedGameProvider);
@@ -296,6 +306,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final List<String> validModIds = [];
 
       for (var oldMod in loadedMods) {
+        // One filesystem check per mod, so a switch should not have to sit
+        // through the whole library before the new game starts loading.
+        if (CancellationToken.isCancelledOrNull(cancelled)) return;
+
         validModIds.add(oldMod.id);
 
         String charId = modCharacterTags[oldMod.id] ?? 'unknown';
@@ -399,6 +413,10 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         previousSelectedId = previousCharacters[selectedIndex].id;
       }
 
+      // A switch made mid-load already queued its own reload, so publishing
+      // these results now would only flash the old game's mods on screen.
+      if (_modReloads.isSuperseded) return;
+
       if (_charactersActuallyChanged(characters)) {
         _lastCharactersState = List.from(characters);
         ref.read(charactersProvider.notifier).setValue(characters);
@@ -425,8 +443,6 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         errorMessage = e.toString();
         isLoading = false;
       });
-    } finally {
-      _isLoadingMods = false;
     }
   }
 
@@ -638,7 +654,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Future<void> _refreshModsList() async {
-    if (_isLoadingMods) return;
+    if (_modReloads.isRunning) return;
     await loadMods(showLoading: false);
     if (!mounted || errorMessage != null) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -848,7 +864,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Widget _buildRefreshModsButton() {
-    final isBusy = isLoading || _isLoadingMods;
+    final isBusy = isLoading || _modReloads.isRunning;
 
     return Tooltip(
       message: loc.t('mods.tooltips.refresh'),

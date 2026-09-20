@@ -6,6 +6,7 @@ import '../models/nte_mod.dart';
 import '../utils/nte_characters.dart';
 import '../utils/path_helper.dart';
 import 'config_service.dart';
+import 'nte_loader_service.dart';
 import 'nte_mod_installer.dart';
 import 'nte_mod_library.dart';
 
@@ -19,10 +20,15 @@ class NteModManager {
   final NteModInstaller installer;
   final ConfigService config;
 
+  /// Installs the mod loader on demand. Null when no valid game folder is
+  /// configured, which is also how tests opt out of touching a loader.
+  final NteLoaderService? loader;
+
   NteModManager({
     required this.library,
     required this.installer,
     required this.config,
+    this.loader,
   });
 
   /// Builds a manager from stored config. Returns null when no valid game
@@ -35,6 +41,7 @@ class NteModManager {
       library: NteModLibrary(resolveLibraryPath(config)),
       installer: NteModInstaller(gamePath),
       config: config,
+      loader: NteLoaderService.fromConfig(config),
     );
   }
 
@@ -80,7 +87,12 @@ class NteModManager {
     enabled ? intent.add(modName) : intent.remove(modName);
     await config.setNteEnabledMods(intent.toList());
 
-    return installer.apply([mod], enabled ? {modName} : const {});
+    final loaderError = enabled ? await _ensureLoader() : null;
+
+    return _withLoaderError(
+      installer.apply([mod], enabled ? {modName} : const {}),
+      loaderError,
+    );
   }
 
   /// Installs mods that should be enabled but are not, such as one the game
@@ -102,7 +114,41 @@ class NteModManager {
     final missing = mods.where((mod) => adopted.contains(mod.name) && !mod.enabled);
     if (missing.isEmpty) return const NteApplyResult();
 
-    return installer.apply(missing, adopted);
+    final loaderError = await _ensureLoader();
+
+    return _withLoaderError(installer.apply(missing, adopted), loaderError);
+  }
+
+  /// Key the loader reports failures under, so it reads as a mod row would.
+  static const String loaderResultKey = 'Mod loader';
+
+  /// Installs the loader if it is missing, so the first mod a user enables
+  /// also brings the game folder into a state that can load it.
+  ///
+  /// Returns an error message when it could not be installed. A failure never
+  /// blocks the mod copy itself: the files are still correct, only inert.
+  Future<String?> _ensureLoader() async {
+    final service = loader;
+    if (service == null) return null;
+
+    try {
+      final status = await service.ensureInstalled();
+      if (status.valid) return null;
+
+      return 'Loader files missing: ${status.missingFiles.join(', ')}';
+    } catch (e) {
+      return 'Loader install failed: $e';
+    }
+  }
+
+  NteApplyResult _withLoaderError(NteApplyResult result, String? error) {
+    if (error == null) return result;
+
+    return NteApplyResult(
+      applied: result.applied,
+      locked: result.locked,
+      errors: {...result.errors, loaderResultKey: error},
+    );
   }
 
   /// Stores the character detected from each untagged mod's folder name.

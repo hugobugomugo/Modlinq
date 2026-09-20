@@ -16,6 +16,8 @@ class ConfigService {
   static const String _keyNteModCategories = 'mod_categories_nte';
   static const String _keyNteEnabledMods = 'enabled_mods_nte';
   static const String _keyNteFavoriteMods = 'favorite_mods_nte';
+  static const String _keyNteAnticensor = 'anticensor_nte';
+  static const String _keyNteHideUid = 'hide_uid_nte';
   static const String _keyActiveMods = 'active_mods';
   static const String _keyWwActiveMods = 'active_mods_ww';
   static const String _keyTheme = 'theme';
@@ -120,6 +122,29 @@ class ConfigService {
   Future<bool> setNteEnabledMods(List<String> modNames) async {
     try {
       return await _prefs.setStringList(_keyNteEnabledMods, modNames);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Bundled Anticensor plugin switched on. Mirrors what is in the game
+  /// folder, so a folder wiped outside the app is corrected on the next read.
+  bool get nteAnticensor => _prefs.getBool(_keyNteAnticensor) ?? false;
+
+  Future<bool> setNteAnticensor(bool value) async {
+    try {
+      return await _prefs.setBool(_keyNteAnticensor, value);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Bundled Hide UID pak mod switched on.
+  bool get nteHideUid => _prefs.getBool(_keyNteHideUid) ?? false;
+
+  Future<bool> setNteHideUid(bool value) async {
+    try {
+      return await _prefs.setBool(_keyNteHideUid, value);
     } catch (e) {
       return false;
     }

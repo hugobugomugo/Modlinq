@@ -17,8 +17,18 @@ import 'services/api_service.dart';
 import 'core/app_version.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/components/update_dialog.dart';
+import 'services/nte_loader_task.dart';
 
-void main() async {
+Future<void> main(List<String> args) async {
+  // Elevated helper: UAC re-runs this same executable so loader files can be
+  // written into a game folder the user's own process is not allowed to touch.
+  // It does the file work and exits, no window is ever created.
+  final loaderTaskFile = NteLoaderTaskRunner.taskFileFromArgs(args);
+  if (loaderTaskFile != null) {
+    await NteLoaderTaskRunner.runFromTaskFile(loaderTaskFile);
+    exit(0);
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
 
   if (!kIsWeb && Platform.isWindows) {

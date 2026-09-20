@@ -86,6 +86,9 @@ flutter:
     - assets/mod_images/
     - assets/icon.png
     - assets/l10n/
+    - assets/nte_loader/
+    - assets/nte_bundled/Anticensor/
+    - assets/nte_bundled/Hide_UID/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

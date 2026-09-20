@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -6,7 +7,10 @@ import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/game_roster.dart';
+import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
+import '../services/nte_loader_installer.dart';
+import '../services/nte_loader_service.dart';
 import '../services/nte_mod_manager.dart';
 import '../l10n/app_localizations.dart';
 
@@ -29,6 +33,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _isUpdatingLanguage = false;
   bool _persistModSettings = true;
   bool _testChannel = false;
+  NteLoaderService? _nteLoader;
+  NteLoaderStatus? _nteLoaderStatus;
+  bool _nteAnticensor = false;
+  bool _nteHideUid = false;
+  bool _nteLoaderBusy = false;
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -78,6 +87,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         _testChannel = configService.testChannel;
         isLoading = false;
       });
+
+      _nteLoader = NteLoaderService.fromConfig(configService);
+      _refreshNteLoader();
     } catch (e) {
       setState(() => isLoading = false);
     }
@@ -349,6 +361,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                 isDarkMode: isDarkMode,
                                 loc: loc,
                               ),
+                              const SizedBox(height: 24),
+                              _buildNteLoaderSection(isDarkMode),
                             ],
                           ),
                           _buildCollapsibleSection(
@@ -1264,6 +1278,184 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
           ),
         ],
       ),
+    );
+  }
+
+  /// Reads what is actually in the game folder rather than what config says.
+  /// A folder cleaned by hand then shows as off instead of lying to the user.
+  void _refreshNteLoader() {
+    final loader = _nteLoader;
+    if (!mounted) return;
+
+    setState(() {
+      _nteLoaderStatus = loader?.status;
+      _nteAnticensor =
+          loader?.isBundledModInstalled(NteBundledMod.anticensor) ?? false;
+      _nteHideUid = loader?.isBundledModInstalled(NteBundledMod.hideUid) ?? false;
+    });
+  }
+
+  Future<void> _runNteLoaderAction(
+    Future<void> Function(NteLoaderService loader) action,
+  ) async {
+    final loader = _nteLoader;
+    if (loader == null || _nteLoaderBusy) return;
+
+    setState(() => _nteLoaderBusy = true);
+    try {
+      await action(loader);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _nteLoaderBusy = false);
+      _refreshNteLoader();
+    }
+  }
+
+  /// File names of `.asi` mods in the library. They live next to the loader,
+  /// so wiping `~mods` alone would leave them running.
+  Future<List<String>> _nteInstalledAsiNames() async {
+    final configService = await ApiService.getConfigService();
+    final manager = NteModManager.fromConfig(configService);
+    if (manager == null) return const [];
+
+    return manager
+        .listMods()
+        .where((mod) => mod.isAsi)
+        .expand((mod) => mod.files.map(p.basename))
+        .toList();
+  }
+
+  Future<void> _confirmNteClean() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clean game folder'),
+        content: const Text(
+          'Removes every installed mod, the loader, Anticensor and Hide UID '
+          'from the game folder. Your mod library is not touched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clean'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final asiNames = await _nteInstalledAsiNames();
+    await _runNteLoaderAction(
+      (loader) => loader.clean(installedAsiNames: asiNames),
+    );
+  }
+
+  Widget _buildNteLoaderSection(bool isDarkMode) {
+    final loader = _nteLoader;
+    final status = _nteLoaderStatus;
+
+    if (loader == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(
+          'Set a valid game folder to manage the mod loader.',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+        ),
+      );
+    }
+
+    final installed = status?.valid ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Mod loader'),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            installed
+                ? 'Installed for ${loader.edition.key.toUpperCase()} (${status!.proxyNames.join(', ')})'
+                : 'Missing: ${status?.missingFiles.join(', ') ?? 'unknown'}. '
+                      'Installs automatically when you enable a mod.',
+            style: TextStyle(
+              fontSize: 12,
+              color: installed ? Colors.green[600] : Colors.grey[600],
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSettingRow(
+          label: 'Anticensor',
+          isDarkMode: isDarkMode,
+          trailing: Switch(
+            value: _nteAnticensor,
+            onChanged: _nteLoaderBusy
+                ? null
+                : (value) => _runNteLoaderAction(
+                    (loader) async {
+                      final configService = await ApiService.getConfigService();
+                      await configService.setNteAnticensor(value);
+                      await loader.setBundledMod(
+                        NteBundledMod.anticensor,
+                        value,
+                      );
+                    },
+                  ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildSettingRow(
+          label: 'Hide UID',
+          isDarkMode: isDarkMode,
+          trailing: Switch(
+            value: _nteHideUid,
+            onChanged: _nteLoaderBusy
+                ? null
+                : (value) => _runNteLoaderAction(
+                    (loader) async {
+                      final configService = await ApiService.getConfigService();
+                      await configService.setNteHideUid(value);
+                      await loader.setBundledMod(NteBundledMod.hideUid, value);
+                    },
+                  ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton(
+              onPressed: _nteLoaderBusy
+                  ? null
+                  : () => _runNteLoaderAction((loader) => loader.install()),
+              child: Text(installed ? 'Reinstall loader' : 'Install loader'),
+            ),
+            OutlinedButton(
+              onPressed: _nteLoaderBusy
+                  ? null
+                  : () => _runNteLoaderAction((loader) => loader.uninstall()),
+              child: const Text('Remove loader'),
+            ),
+            OutlinedButton(
+              onPressed: _nteLoaderBusy ? null : _confirmNteClean,
+              child: const Text('Clean game folder'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

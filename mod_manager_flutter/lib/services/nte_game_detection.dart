@@ -138,7 +138,12 @@ class NteGameDetection {
   /// [NteInstall] when nothing is found, so callers can prompt for a path.
   static NteInstall autoDetect() {
     if (Platform.isWindows) {
-      return validate(windowsDefaultPath);
+      for (final candidate in windowsCandidatePaths()) {
+        final check = validate(candidate);
+        if (check.valid) return check;
+      }
+
+      return const NteInstall.notFound();
     }
 
     for (final candidate in linuxCandidatePaths()) {
@@ -149,6 +154,95 @@ class NteGameDetection {
     }
 
     return const NteInstall.notFound();
+  }
+
+  /// Folders that may contain a game install on Windows, in search order.
+  ///
+  /// The launcher's default folder comes first, then every game folder in
+  /// every Steam library. A second library on another drive is how Steam users
+  /// deal with a full system drive, so checking only `C:\Program Files` misses
+  /// a large share of installs.
+  static List<String> windowsCandidatePaths({Iterable<String>? steamRoots}) {
+    final candidates = <String>[];
+    final seen = <String>{};
+
+    void add(String dir) {
+      // Windows paths are case insensitive, so the same folder reached two
+      // ways must not be validated twice.
+      if (seen.add(dir.toLowerCase())) candidates.add(dir);
+    }
+
+    add(windowsDefaultPath);
+
+    for (final common in steamLibraryCommonsFrom(steamRoots ?? _steamRoots())) {
+      _subdirectoriesOf(common).forEach(add);
+    }
+
+    return candidates;
+  }
+
+  /// Steam installs and libraries to search on Windows.
+  static List<String> windowsSteamRoots() {
+    final roots = <String>[];
+
+    void add(String? dir) {
+      if (dir == null || dir.isEmpty) return;
+      if (!roots.any((existing) => existing.toLowerCase() == dir.toLowerCase())) {
+        roots.add(dir);
+      }
+    }
+
+    add(steamPathFromRegistry());
+
+    for (final variable in ['ProgramFiles(x86)', 'ProgramFiles']) {
+      final base = Platform.environment[variable];
+      if (base != null && base.isNotEmpty) add(p.join(base, 'Steam'));
+    }
+
+    // Extra libraries are listed in libraryfolders.vdf, but only if Steam
+    // itself was found. These cover the case where it was not.
+    for (final drive in _windowsDriveRoots()) {
+      add(p.join(drive, 'Steam'));
+      add(p.join(drive, 'SteamLibrary'));
+    }
+
+    return roots;
+  }
+
+  /// Steam's own install path, as Steam records it for the current user.
+  static String? steamPathFromRegistry() {
+    if (!Platform.isWindows) return null;
+
+    try {
+      final result = Process.runSync('reg', [
+        'query',
+        r'HKCU\Software\Valve\Steam',
+        '/v',
+        'SteamPath',
+      ]);
+      if (result.exitCode != 0) return null;
+
+      final match = RegExp(
+        r'SteamPath\s+REG_SZ\s+(.+)',
+      ).firstMatch(result.stdout.toString());
+
+      // Steam writes this value with forward slashes.
+      return match?.group(1)?.trim().replaceAll('/', '\\');
+    } catch (_) {
+      return null; // reg.exe missing or blocked
+    }
+  }
+
+  /// Drive letters that currently have a filesystem mounted.
+  static List<String> _windowsDriveRoots() {
+    final drives = <String>[];
+
+    for (var letter = 'C'.codeUnitAt(0); letter <= 'Z'.codeUnitAt(0); letter++) {
+      final root = '${String.fromCharCode(letter)}:\\';
+      if (Directory(root).existsSync()) drives.add(root);
+    }
+
+    return drives;
   }
 
   /// Folders that may contain a game install, in search order.
@@ -240,12 +334,18 @@ class NteGameDetection {
 
     final rest = line.substring(quotedKey.length).trim();
     if (rest.length >= 2 && rest.startsWith('"') && rest.endsWith('"')) {
-      return rest.substring(1, rest.length - 1);
+      // Windows paths are stored escaped: "D:\\SteamLibrary".
+      return rest
+          .substring(1, rest.length - 1)
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\\', '\\');
     }
     return null;
   }
 
   static List<String> _steamRoots() {
+    if (Platform.isWindows) return windowsSteamRoots();
+
     final home = Platform.environment['HOME'];
     if (home == null || home.isEmpty) return const [];
     return [
@@ -255,10 +355,13 @@ class NteGameDetection {
   }
 
   /// Every Steam library root, including those listed in `libraryfolders.vdf`.
-  static List<String> _steamLibraryRoots() {
+  static List<String> _steamLibraryRoots() => steamLibraryRootsFrom(_steamRoots());
+
+  /// Same, for an explicit set of Steam installs.
+  static List<String> steamLibraryRootsFrom(Iterable<String> steamRoots) {
     final roots = <String>[];
 
-    for (final root in _steamRoots()) {
+    for (final root in steamRoots) {
       if (!Directory(root).existsSync()) continue;
       roots.add(root);
 
@@ -275,11 +378,15 @@ class NteGameDetection {
   }
 
   /// All `steamapps/common` directories across every Steam library.
-  static List<String> steamLibraryCommons() {
+  static List<String> steamLibraryCommons() =>
+      steamLibraryCommonsFrom(_steamRoots());
+
+  /// Same, for an explicit set of Steam installs.
+  static List<String> steamLibraryCommonsFrom(Iterable<String> steamRoots) {
     final seen = <String>{};
     final commons = <String>[];
 
-    for (final lib in _steamLibraryRoots()) {
+    for (final lib in steamLibraryRootsFrom(steamRoots)) {
       final common = p.join(lib, 'steamapps', 'common');
       if (!Directory(common).existsSync()) continue;
       if (seen.add(_canonical(common))) commons.add(common);

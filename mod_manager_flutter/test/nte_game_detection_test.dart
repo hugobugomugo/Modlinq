@@ -130,6 +130,84 @@ void main() {
     });
   });
 
+  group('steam libraries', () {
+    test('a library listed in libraryfolders.vdf is searched too', () {
+      final steamRoot = p.join(tmp.path, 'Steam');
+      final ownCommon = Directory(p.join(steamRoot, 'steamapps', 'common'))
+        ..createSync(recursive: true);
+
+      final otherLibrary = p.join(tmp.path, 'SteamLibrary');
+      final otherCommon = Directory(p.join(otherLibrary, 'steamapps', 'common'))
+        ..createSync(recursive: true);
+
+      File(p.join(steamRoot, 'steamapps', 'libraryfolders.vdf')).writeAsStringSync('''
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"$steamRoot"
+	}
+	"1"
+	{
+		"path"		"$otherLibrary"
+	}
+}
+''');
+
+      final commons = NteGameDetection.steamLibraryCommonsFrom([steamRoot]);
+
+      expect(commons, containsAll([ownCommon.path, otherCommon.path]));
+    });
+
+    test('windows vdf paths keep their escaped backslashes intact', () {
+      expect(
+        NteGameDetection.vdfValue(r'"path"		"D:\\SteamLibrary"', 'path'),
+        r'D:\SteamLibrary',
+      );
+    });
+  });
+
+  group('windows candidates', () {
+    test('every game folder in a steam library is a candidate', () {
+      final steamRoot = p.join(tmp.path, 'Steam');
+      final common = Directory(p.join(steamRoot, 'steamapps', 'common'))
+        ..createSync(recursive: true);
+
+      final game = Directory(p.join(common.path, 'Neverness to Everness'))
+        ..createSync(recursive: true);
+      Directory(p.join(common.path, 'Some Other Game')).createSync();
+
+      final candidates = NteGameDetection.windowsCandidatePaths(
+        steamRoots: [steamRoot],
+      );
+
+      expect(candidates, contains(game.path));
+      expect(candidates.first, NteGameDetection.windowsDefaultPath);
+    });
+
+    test('a valid install in a steam library is detected', () {
+      final steamRoot = p.join(tmp.path, 'Steam');
+      final common = Directory(p.join(steamRoot, 'steamapps', 'common'))
+        ..createSync(recursive: true);
+
+      final game = p.join(common.path, 'Neverness to Everness');
+      Directory(game).createSync();
+      _writeSharedFiles(game);
+      _writeEdition(game, 'NTEGlobalLauncher.exe', 'NTEGlobal', [
+        'NTEGlobalGame.exe',
+        'NTEGlobalLauncher.exe',
+        'NTEGlobalUpdate.exe',
+      ]);
+
+      final found = NteGameDetection.windowsCandidatePaths(
+        steamRoots: [steamRoot],
+      ).map(NteGameDetection.validate).where((check) => check.valid).toList();
+
+      expect(found.map((check) => check.path), [game]);
+      expect(found.single.edition, NteEdition.global);
+    });
+  });
+
   group('findCompatPrefixFor', () {
     test('returns the prefix root for a path inside drive_c', () {
       final game = p.join(tmp.path, 'pfx', 'drive_c', 'Program Files', 'Neverness To Everness');

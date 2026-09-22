@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:modlinq/games/game_module.dart';
 import 'package:modlinq/games/game_registry.dart';
 import 'package:modlinq/models/game_type.dart';
 

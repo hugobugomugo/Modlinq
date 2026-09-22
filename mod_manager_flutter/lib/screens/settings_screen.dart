@@ -166,7 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Kein gültiger Deadlock-Ordner (game/citadel fehlt)'),
+            content: Text('Not a Deadlock folder (game/citadel is missing)'),
           ),
         );
       }
@@ -417,7 +417,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                             initiallyExpanded: selectedGame == GameType.deadlock,
                             children: [
                               _buildPathField(
-                                label: 'Deadlock-Ordner',
+                                label: 'Deadlock folder',
                                 hint: r'...\steamapps\common\Deadlock',
                                 controller: _deadlockGamePathController,
                                 onBrowse: pickDeadlockGamePath,
@@ -426,7 +426,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               ),
                               const SizedBox(height: 16),
                               _buildPathField(
-                                label: 'Mod-Bibliothek',
+                                label: 'Mod library',
                                 hint: '~/.local/share/modlinq/deadlock_mods',
                                 controller: _deadlockLibraryPathController,
                                 onBrowse: pickDeadlockLibraryPath,
@@ -497,7 +497,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               const SizedBox(height: 20),
                               _buildUpdateCheck(isDarkMode),
                               const SizedBox(height: 24),
-                              _buildSectionTitle('Ausgeblendete Mods'),
+                              _buildSectionTitle('Hidden mods'),
                               const SizedBox(height: 16),
                               _buildHiddenMods(isDarkMode),
                             ],
@@ -1381,9 +1381,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Text(
-          'Für ${game.displayName} ist nichts ausgeblendet. Rechtsklick auf '
-          'eine Mod-Kachel → „Ausblenden" nimmt sie aus der Übersicht, ohne '
-          'sie zu löschen.',
+          'Nothing is hidden for ${game.displayName}. Right-click a mod card '
+          'and pick Hide to take it out of the grid without deleting it.',
           style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
         ),
       );
@@ -1409,9 +1408,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            'Klick blendet wieder ein. Ein ausgeblendeter Mod, den du zusätzlich '
-            'deinstalliert hast, kommt als deaktiviert zurück — die Kopie in der '
-            'Bibliothek wurde nie angefasst.',
+            'Click to show it again. A mod you also uninstalled comes back '
+            'disabled - the copy in your library was never touched.',
             style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
           ),
         ),
@@ -1448,7 +1446,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                 if (!install.valid) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Deadlock in keiner Steam-Bibliothek gefunden'),
+                      content: Text('Deadlock not found in any Steam library'),
                     ),
                   );
                   return;
@@ -1457,12 +1455,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                 setState(() => _deadlockGamePathController.text = install.path);
               },
               icon: const Icon(Icons.search, size: 16),
-              label: const Text('Automatisch finden'),
+              label: const Text('Detect automatically'),
             ),
             OutlinedButton.icon(
               onPressed: _repairDeadlockGameinfo,
               icon: const Icon(Icons.healing_rounded, size: 16),
-              label: const Text('gameinfo.gi reparieren'),
+              label: const Text('Repair gameinfo.gi'),
             ),
           ],
         ),
@@ -1470,10 +1468,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            'Deadlock-Updates überschreiben gameinfo.gi und entfernen dabei den '
-            'addons-Pfad — dann lädt das Spiel keinen einzigen Mod mehr. Der '
-            'Reparatur-Knopf setzt die Zeile zurück; beim Aktivieren eines Mods '
-            'passiert das ohnehin automatisch.',
+            'Deadlock updates overwrite gameinfo.gi and drop the addons search '
+            'path, which stops every mod from loading. This puts the line back; '
+            'enabling a mod does it automatically anyway.',
             style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
           ),
         ),
@@ -1488,7 +1485,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
 
     if (manager == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erst den Deadlock-Ordner setzen')),
+        const SnackBar(content: Text('Set the Deadlock folder first')),
       );
       return;
     }
@@ -1501,8 +1498,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         SnackBar(
           content: Text(
             repaired
-                ? 'addons-Pfad wieder eingetragen'
-                : 'gameinfo.gi war schon in Ordnung',
+                ? 'addons search path restored'
+                : 'gameinfo.gi was already fine',
           ),
         ),
       );

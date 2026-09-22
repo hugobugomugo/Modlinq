@@ -588,7 +588,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
       return Column(
         children: [
           _buildPathField(
-            label: 'Deadlock-Ordner',
+            label: 'Deadlock folder',
             hint: r'...\steamapps\common\Deadlock',
             controller: _deadlockGamePathController,
             onBrowse: () => _pickInto(_deadlockGamePathController),

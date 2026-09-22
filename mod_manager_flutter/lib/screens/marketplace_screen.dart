@@ -135,7 +135,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'GameBanana durchsuchen…',
+              hintText: 'Search GameBanana…',
               hintStyle: const TextStyle(fontSize: 12),
               prefixIcon: const Icon(Icons.search, size: 18),
               suffixIcon: _query.isEmpty
@@ -167,7 +167,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   Widget _buildSortChips(bool isDarkMode) {
     if (_query.isNotEmpty) {
       return Text(
-        'Suchergebnisse für "$_query"',
+        'Results for "$_query"',
         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
       );
     }
@@ -175,7 +175,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     return Wrap(
       spacing: 8,
       children: [
-        for (final entry in const {'new': 'Neu', 'default': 'Beliebt'}.entries)
+        for (final entry in const {'new': 'Newest', 'default': 'Popular'}.entries)
           ChoiceChip(
             label: Text(entry.value, style: const TextStyle(fontSize: 11)),
             selected: _sort == entry.key,
@@ -206,7 +206,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
             const SizedBox(height: 12),
-            OutlinedButton(onPressed: _load, child: const Text('Nochmal')),
+            OutlinedButton(onPressed: _load, child: const Text('Retry')),
           ],
         ),
       );
@@ -215,7 +215,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     if (_mods.isEmpty) {
       return Center(
         child: Text(
-          'Nichts gefunden',
+          'Nothing found',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       );
@@ -309,10 +309,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                         : const Icon(Icons.download_rounded, size: 15),
                     label: Text(
                       isInstalling
-                          ? 'Lädt…'
+                          ? 'Downloading…'
                           : mod.hasFiles
-                          ? 'Installieren'
-                          : 'Keine Dateien',
+                          ? 'Install'
+                          : 'No files',
                       style: const TextStyle(fontSize: 11),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -339,7 +339,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           .toList();
 
       if (installable.isEmpty) {
-        _snack('Keine unterstützte Archivdatei bei "${mod.name}"');
+        _snack('No supported archive attached to "${mod.name}"');
         return;
       }
 
@@ -350,7 +350,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       if (archive == null) return;
 
       if (!await _checksumMatches(archive, file)) {
-        _snack('Prüfsumme stimmt nicht, Installation abgebrochen', isError: true);
+        _snack('Checksum mismatch, install aborted', isError: true);
         await archive.delete();
         return;
       }
@@ -368,20 +368,20 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Von GameBanana markiert'),
+        title: const Text('Flagged by GameBanana'),
         content: Text(
-          '${file.name} wurde als "${file.analysisResult}" eingestuft. '
-          'Das ist oft harmlos (z. B. eine mitgelieferte .exe), kann aber '
-          'auch Schadsoftware sein.',
+          '${file.name} was classified as "${file.analysisResult}". That is '
+          'often harmless, a bundled .exe for example, but it can also be '
+          'malware.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Trotzdem laden'),
+            child: const Text('Download anyway'),
           ),
         ],
       ),
@@ -399,7 +399,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
     final response = await http.Client().send(request);
     if (response.statusCode != 200) {
-      _snack('Download fehlgeschlagen (${response.statusCode})', isError: true);
+      _snack('Download failed (${response.statusCode})', isError: true);
       return null;
     }
 
@@ -430,7 +430,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           : NteModManager.fromConfig(config);
 
       if (manager == null) {
-        _snack('Erst den Spielordner in den Einstellungen setzen', isError: true);
+        _snack('Set the game folder in settings first', isError: true);
         return;
       }
 
@@ -439,8 +439,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
       _snack(
         imported.isNotEmpty
-            ? '"${imported.first.name}" importiert'
-            : skipped.values.firstOrNull ?? 'Nichts importiert',
+            ? '"${imported.first.name}" imported'
+            : skipped.values.firstOrNull ?? 'Nothing imported',
         isError: imported.isEmpty,
       );
       return;
@@ -449,13 +449,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     // 3DMigoto games: unpack, then hand the folders to the existing importer.
     final extraction = await ArchiveService.extractArchive(archiveFile: archive);
     if (!extraction.success) {
-      _snack(extraction.error ?? 'Archiv nicht unterstützt', isError: true);
+      _snack(extraction.error ?? 'Archive format not supported', isError: true);
       return;
     }
 
     final folders = extraction.extractedFolders ?? const [];
     if (folders.isEmpty) {
-      _snack('Archiv enthielt keinen Mod-Ordner', isError: true);
+      _snack('The archive held no mod folder', isError: true);
       return;
     }
 
@@ -464,8 +464,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
     _snack(
       imported.isNotEmpty
-          ? '"${mod.name}" installiert'
-          : 'Mod war schon vorhanden',
+          ? '"${mod.name}" installed'
+          : 'Mod was already there',
       isError: imported.isEmpty,
     );
   }

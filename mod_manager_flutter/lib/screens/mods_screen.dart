@@ -1809,25 +1809,24 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     final alsoUninstall = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('"${mod.name}" ausblenden'),
+        title: Text('Hide "${mod.name}"'),
         content: const Text(
-          'Der Mod verschwindet aus der Übersicht. Seine Dateien im Spiel '
-          'bleiben unangetastet, solange du ihn nicht zusätzlich '
-          'deinstallierst. Beides lässt sich in den Einstellungen '
-          'rückgängig machen.',
+          'The mod disappears from the grid. Its files in the game are left '
+          'alone unless you also uninstall it. Both can be undone in '
+          'settings.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(null),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Nur ausblenden'),
+            child: const Text('Hide only'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Ausblenden + deinstallieren'),
+            child: const Text('Hide and uninstall'),
           ),
         ],
       ),
@@ -1847,7 +1846,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
 
     await loadMods(showLoading: false);
-    _showSnack('"${mod.name}" ausgeblendet');
+    _showSnack('"${mod.name}" hidden');
   }
 
   void _showContextMenu(BuildContext context, ModInfo mod, Offset position) {
@@ -1865,7 +1864,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
             children: [
               Icon(Icons.visibility_off_rounded, size: 18),
               SizedBox(width: 8),
-              Text('Ausblenden'),
+              Text('Hide'),
             ],
           ),
           onTap: () {

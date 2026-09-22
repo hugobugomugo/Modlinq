@@ -114,7 +114,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
   }
 
   Widget _buildGroupLabel(GameRailGroup group, bool isDarkMode) {
-    final label = group.isFavorites ? 'FAVORITEN' : group.name?.toUpperCase();
+    final label = group.isFavorites ? 'FAVORITES' : group.name?.toUpperCase();
     if (label == null) return const SizedBox(height: 4);
 
     return Padding(
@@ -229,7 +229,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
 
   Widget _buildAddButton(bool isDarkMode) {
     return Tooltip(
-      message: 'Ausgeblendete Spiele',
+      message: 'Hidden games',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
@@ -274,31 +274,31 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
       items: [
         PopupMenuItem(
           value: _RailAction.pasteIcon,
-          child: const Text('Icon aus Zwischenablage'),
+          child: const Text('Icon from clipboard'),
         ),
         PopupMenuItem(
           value: _RailAction.pickIcon,
-          child: const Text('Icon aus Datei…'),
+          child: const Text('Icon from file…'),
         ),
         // Only offered when there is something to undo, so the menu never
         // shows an action that would do nothing.
         if (hasCustomIcon)
           PopupMenuItem(
             value: _RailAction.resetIcon,
-            child: const Text('Icon zurücksetzen'),
+            child: const Text('Reset icon'),
           ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: _RailAction.toggleFavorite,
-          child: Text(isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten'),
+          child: Text(isFavorite ? 'Remove from favorites' : 'Add to favorites'),
         ),
         PopupMenuItem(
           value: _RailAction.category,
-          child: const Text('Kategorie ändern…'),
+          child: const Text('Change category…'),
         ),
         PopupMenuItem(
           value: _RailAction.hide,
-          child: const Text('Spiel ausblenden'),
+          child: const Text('Hide game'),
         ),
       ],
     );
@@ -325,7 +325,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
   Future<void> _setIconFromClipboard(GameModule module) async {
     final bytes = await Pasteboard.image;
     if (bytes == null) {
-      _snack('Keine Grafik in der Zwischenablage');
+      _snack('No image in the clipboard');
       return;
     }
 
@@ -397,7 +397,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
     final value = await showDialog<String?>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Kategorie für ${module.displayName}'),
+        title: Text('Category for ${module.displayName}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +406,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
               controller: controller,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: 'z. B. Gacha, Source 2',
+                hintText: 'e.g. Gacha, Source 2',
               ),
               onSubmitted: (text) => Navigator.of(dialogContext).pop(text),
             ),
@@ -426,11 +426,11 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(''),
-            child: const Text('Keine'),
+            child: const Text('None'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text('Speichern'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -449,7 +449,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
     final restored = await showDialog<String>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
-        title: const Text('Ausgeblendete Spiele'),
+        title: const Text('Hidden games'),
         children: [
           for (final key in _hidden)
             SimpleDialogOption(

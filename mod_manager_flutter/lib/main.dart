@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:io';
 import 'core/constants.dart';
@@ -31,10 +29,6 @@ Future<void> main(List<String> args) async {
   }
 
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (!kIsWeb && Platform.isWindows) {
-    InAppWebViewPlatform.instance = WindowsInAppWebViewPlatform();
-  }
 
   await windowManager.ensureInitialized();
 

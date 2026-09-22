@@ -1,26 +1,27 @@
-import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
-import 'package:flutter/foundation.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
+import '../games/deadlock/deadlock_manager.dart';
 import '../games/game_module.dart';
 import '../games/game_registry.dart';
-import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/archive_service.dart';
-import '../services/mod_manager_service.dart';
-import '../services/platform_service_factory.dart';
-import '../utils/path_helper.dart';
+import '../services/gamebanana_client.dart';
+import '../services/nte_mod_manager.dart';
+import '../services/nte_mods_adapter.dart';
 import '../utils/state_providers.dart';
 
-enum _MarketplaceDownloadChoice { cancel, downloadOnly, downloadAndInstall }
-
+/// Browses GameBanana inside the app.
+///
+/// This used to be an embedded browser. Reading the public API instead means
+/// the grid matches the rest of the app, the download is verified against the
+/// checksum GameBanana publishes, and a file its scanner flagged can be
+/// called out before anything is unpacked.
 class MarketplaceScreen extends ConsumerStatefulWidget {
   const MarketplaceScreen({super.key});
 
@@ -29,162 +30,298 @@ class MarketplaceScreen extends ConsumerStatefulWidget {
 }
 
 class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
-  /// Hub of the game that is currently selected. Hardcoding one id meant
-  /// Wuthering Waves and NTE both browsed the ZZZ catalogue.
-  GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
-
-  WebUri get _homeUri => WebUri(_game.marketplaceUrl);
-
-  InAppWebViewController? _inAppWebViewController;
+  final GameBananaClient _client = GameBananaClient();
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = true;
-  double _progress = 0;
-  
-  StreamSubscription<FileSystemEvent>? _downloadsWatcher;
-  final Set<String> _processedFiles = {};
-  bool _isWatchingDownloads = false;
 
-  bool get _isWindows => !kIsWeb && Platform.isWindows;
-  bool get _isLinux => !kIsWeb && Platform.isLinux;
-  bool get _isDesktop => _isWindows || _isLinux;
+  List<GameBananaMod> _mods = const [];
+  bool _isLoading = true;
+  String? _error;
+  String _sort = 'new';
+  String _query = '';
+  int? _installingModId;
+
+  GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
 
   @override
   void initState() {
     super.initState();
+    _load();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _stopDownloadsWatcher();
     super.dispose();
   }
-  
-  void _stopDownloadsWatcher() {
-    _downloadsWatcher?.cancel();
-    _downloadsWatcher = null;
-    _isWatchingDownloads = false;
-  }
 
-  AppLocalizations get loc => context.loc;
-  bool get _isWebViewSupported => _isWindows;
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final mods = _query.isEmpty
+          ? await _client.feed(gameId: _game.marketplaceGameId, sort: _sort)
+          : await _client.search(
+              gameId: _game.marketplaceGameId,
+              query: _query,
+            );
+
+      if (!mounted) return;
+      setState(() {
+        _mods = mods;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode = ref.watch(isDarkModeProvider);
-    final isSupported = _isWebViewSupported;
 
-    return Column(
+    // Switching games switches catalogues; the feed must follow.
+    ref.listen(selectedGameProvider, (previous, next) {
+      if (previous != next) _load();
+    });
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(isDarkMode),
+          const SizedBox(height: 14),
+          _buildSortChips(isDarkMode),
+          const SizedBox(height: 14),
+          Expanded(child: _buildBody(isDarkMode)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(bool isDarkMode) {
+    return Row(
       children: [
-        _buildToolbar(isDarkMode, isSupported),
-        if (_isLoading && isSupported) _buildProgressBar(),
         Expanded(
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Marketplace',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: isDarkMode ? Colors.grey[100] : Colors.grey[900],
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${_game.displayName} · GameBanana ${_game.marketplaceGameId}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: 280,
+          height: 38,
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'GameBanana durchsuchen…',
+              hintStyle: const TextStyle(fontSize: 12),
+              prefixIcon: const Icon(Icons.search, size: 18),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                        _load();
+                      },
+                    ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: isSupported
-                ? _buildWebView(isDarkMode)
-                : _buildUnsupportedView(isDarkMode),
+            style: const TextStyle(fontSize: 12),
+            onSubmitted: (value) {
+              setState(() => _query = value.trim());
+              _load();
+            },
           ),
         ),
       ],
     );
   }
 
-  Widget _buildToolbar(bool isDarkMode, bool isEnabled) {
+  Widget _buildSortChips(bool isDarkMode) {
+    if (_query.isNotEmpty) {
+      return Text(
+        'Suchergebnisse für "$_query"',
+        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      children: [
+        for (final entry in const {'new': 'Neu', 'default': 'Beliebt'}.entries)
+          ChoiceChip(
+            label: Text(entry.value, style: const TextStyle(fontSize: 11)),
+            selected: _sort == entry.key,
+            onSelected: (_) {
+              setState(() => _sort = entry.key);
+              _load();
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBody(bool isDarkMode) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 34, color: Colors.grey[600]),
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: _load, child: const Text('Nochmal')),
+          ],
+        ),
+      );
+    }
+
+    if (_mods.isEmpty) {
+      return Center(
+        child: Text(
+          'Nichts gefunden',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.only(bottom: 20),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 260,
+        mainAxisExtent: 250,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+      ),
+      itemCount: _mods.length,
+      itemBuilder: (context, index) => _buildCard(_mods[index], isDarkMode),
+    );
+  }
+
+  Widget _buildCard(GameBananaMod mod, bool isDarkMode) {
+    final isInstalling = _installingModId == mod.id;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF1A1A1A) : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: isDarkMode
-                ? Colors.black.withValues(alpha: 0.4)
-                : Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: isDarkMode ? const Color(0xFF111114) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildIconButton(
-            icon: Icons.arrow_back,
-            tooltip: loc.t('marketplace.back'),
-            enabled: isEnabled,
-            onPressed: () {
-              _handleBackNavigation();
-            },
-          ),
-          const SizedBox(width: 8),
-          _buildIconButton(
-            icon: Icons.arrow_forward,
-            tooltip: loc.t('marketplace.forward'),
-            enabled: isEnabled,
-            onPressed: () {
-              _handleForwardNavigation();
-            },
-          ),
-          const SizedBox(width: 8),
-          _buildIconButton(
-            icon: Icons.refresh,
-            tooltip: loc.t('marketplace.reload'),
-            enabled: isEnabled,
-            onPressed: () {
-              _handleReload();
-            },
-          ),
-          const SizedBox(width: 8),
-          _buildIconButton(
-            icon: Icons.home,
-            tooltip: loc.t('marketplace.home'),
-            enabled: isEnabled,
-            onPressed: () {
-              _handleHomeNavigation();
-            },
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.black.withValues(alpha: 0.03),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDarkMode
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.black.withValues(alpha: 0.08),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-                  const Icon(Icons.search, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      enabled: isEnabled,
-                      decoration: InputDecoration(
-                        hintText: loc.t('marketplace.search_hint'),
-                        border: InputBorder.none,
-                      ),
-                      onSubmitted: _performSearch,
+          SizedBox(
+            height: 120,
+            width: double.infinity,
+            child: mod.thumbnailUrl == null
+                ? Container(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.grey[700],
+                    ),
+                  )
+                : Image.network(
+                    mod.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      color: Colors.black.withValues(alpha: 0.2),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: isEnabled
-                        ? () => _performSearch(_searchController.text)
-                        : null,
-                    child: Text(loc.t('marketplace.search')),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 10, 11, 11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mod.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDarkMode ? Colors.grey[200] : Colors.grey[900],
                   ),
-                  const SizedBox(width: 8),
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '@${mod.author}${mod.category == null ? '' : ' · ${mod.category}'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 9),
+                SizedBox(
+                  width: double.infinity,
+                  height: 30,
+                  child: ElevatedButton.icon(
+                    onPressed: !mod.hasFiles || _installingModId != null
+                        ? null
+                        : () => _install(mod),
+                    icon: isInstalling
+                        ? const SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_rounded, size: 15),
+                    label: Text(
+                      isInstalling
+                          ? 'Lädt…'
+                          : mod.hasFiles
+                          ? 'Installieren'
+                          : 'Keine Dateien',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0EA5E9),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -192,948 +329,156 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
   }
 
-  Widget _buildIconButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    required String tooltip,
-    bool enabled = true,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: Colors.transparent,
-          ),
-          child: Icon(icon, size: 20, color: enabled ? null : Colors.grey),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUnsupportedView(bool isDarkMode) {
-    if (_isLinux) {
-      return _buildLinuxMarketplaceView(isDarkMode);
-    }
-    
-    final url = _homeUri.toString();
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.open_in_browser,
-                size: 48,
-                color: isDarkMode ? Colors.white54 : Colors.black45,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                loc.t('marketplace.unsupported_title'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                loc.t('marketplace.unsupported_body', params: {'url': url}),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
-                ),
-              ),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: url));
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(loc.t('marketplace.copy_success'))),
-                  );
-                },
-                icon: const Icon(Icons.copy_all_rounded),
-                label: Text(loc.t('marketplace.copy_link')),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildLinuxMarketplaceView(bool isDarkMode) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.public,
-                size: 64,
-                color: isDarkMode ? Colors.blue.shade300 : Colors.blue.shade700,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                loc.t('marketplace.linux_title'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                loc.t('marketplace.linux_body'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: isDarkMode ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: _openBrowserAndStartWatching,
-                    icon: const Icon(Icons.open_in_browser, size: 24),
-                    label: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Text(
-                        loc.t('marketplace.open_marketplace'),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  if (_isWatchingDownloads) ...[
-                    const SizedBox(width: 12),
-                    IconButton.filled(
-                      onPressed: () {
-                        setState(() {
-                          _stopDownloadsWatcher();
-                        });
-                      },
-                      icon: const Icon(Icons.stop),
-                      tooltip: loc.t('marketplace.stop_watching'),
-                      style: IconButton.styleFrom(
-                        backgroundColor: isDarkMode 
-                            ? Colors.red.shade700 
-                            : Colors.red.shade600,
-                      ),
-                    ),
-                  ],
-                  if (!_isWatchingDownloads) ...[
-                    const SizedBox(width: 12),
-                    IconButton.filled(
-                      onPressed: _startDownloadsWatcher,
-                      icon: const Icon(Icons.play_arrow),
-                      tooltip: loc.t('marketplace.start_watching'),
-                      style: IconButton.styleFrom(
-                        backgroundColor: isDarkMode 
-                            ? Colors.green.shade700 
-                            : Colors.green.shade600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (_isWatchingDownloads) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDarkMode 
-                        ? Colors.green.shade900.withValues(alpha: 0.3) 
-                        : Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDarkMode 
-                          ? Colors.green.shade700 
-                          : Colors.green.shade300,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.downloading,
-                        color: isDarkMode 
-                            ? Colors.green.shade300 
-                            : Colors.green.shade700,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          loc.t('marketplace.watching_downloads'),
-                          style: TextStyle(
-                            color: isDarkMode 
-                                ? Colors.green.shade200 
-                                : Colors.green.shade900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Future<void> _openBrowserAndStartWatching() async {
-    final platformService = PlatformServiceFactory.getInstance();
-    final url = _homeUri.toString();
-    
-    final opened = await platformService.openUrlInBrowser(url);
-    
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Theme.of(context).colorScheme.error,
-          content: Text(loc.t('marketplace.error_opening')),
-        ),
-      );
-      return;
-    }
-    
-    _startDownloadsWatcher();
-  }
-  
-  void _startDownloadsWatcher() {
-    if (_isWatchingDownloads) return;
-    
-    final platformService = PlatformServiceFactory.getInstance();
-    final downloadsPath = platformService.getSystemDownloadsPath();
-    
-    if (downloadsPath == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not find Downloads directory'),
-          ),
-        );
-      }
-      return;
-    }
-    
-    final downloadsDir = Directory(downloadsPath);
-    if (!downloadsDir.existsSync()) {
-      downloadsDir.createSync(recursive: true);
-    }
-    
-    setState(() {
-      _isWatchingDownloads = true;
-    });
-    
-    _downloadsWatcher = downloadsDir.watch(events: FileSystemEvent.create).listen(
-      (event) {
-        if (event is FileSystemCreateEvent) {
-          _handleNewDownload(event.path);
-        }
-      },
-    );
-    
-    print('LinuxMarketplace: Watching $downloadsPath for new downloads');
-  }
-  
-  Future<void> _handleNewDownload(String filePath) async {
-    if (_processedFiles.contains(filePath)) return;
-    
-    final extension = path.extension(filePath).toLowerCase();
-    if (extension != '.zip' && extension != '.rar' && extension != '.7z') {
-      return;
-    }
-    
-    _processedFiles.add(filePath);
-    
-    print('LinuxMarketplace: new file detected: $filePath');
-    
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    final file = File(filePath);
-    if (!await file.exists()) {
-      print('LinuxMarketplace: file does not exist: $filePath');
-      return;
-    }
-    
-    print('LinuxMarketplace: waiting for download to finish...');
-    if (!await _waitForFileToBeReady(file)) {
-      print('LinuxMarketplace: file not ready after wait');
-      return;
-    }
-    
-    print('LinuxMarketplace: file ready: ${file.lengthSync()} bytes');
-    
-    if (!mounted) return;
-    
-    final choice = await _showDownloadChoiceDialog(
-      context,
-      suggestedName: path.basename(filePath),
-      url: filePath,
-    );
-    
-    if (choice != _MarketplaceDownloadChoice.cancel && mounted) {
-      if (choice == _MarketplaceDownloadChoice.downloadAndInstall) {
-        await _installArchiveFromPath(filePath);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                loc.t('marketplace.download_saved', params: {'path': filePath}),
-              ),
-            ),
-          );
-        }
-      }
-    }
-  }
-  
-  Future<bool> _waitForFileToBeReady(File file) async {
-    const maxAttempts = 120;
-    int previousSize = -1;
-    int stableCount = 0;
-    
-    for (int i = 0; i < maxAttempts; i++) {
-      await Future.delayed(const Duration(milliseconds: 1000));
-      
-      if (!await file.exists()) {
-        print('LinuxMarketplace: file vanished, attempt $i/$maxAttempts');
-        return false;
-      }
-      
-      try {
-        final currentSize = await file.length();
-        print('LinuxMarketplace: checking size: $currentSize bytes (attempt ${i+1}/$maxAttempts)');
-        
-        if (currentSize == previousSize && currentSize > 0) {
-          stableCount++;
-          print('LinuxMarketplace: size stable ($stableCount/3)');
-          
-          if (stableCount >= 3) {
-            print('LinuxMarketplace: file ready! size: $currentSize bytes');
-            return true;
-          }
-        } else {
-          stableCount = 0;
-        }
-        
-        previousSize = currentSize;
-      } catch (e) {
-        print('LinuxMarketplace: file size check failed: $e');
-        await Future.delayed(const Duration(milliseconds: 1000));
-      }
-    }
-    
-    print('LinuxMarketplace: wait timeout (120 seconds)');
-    return false;
-  }
-  
-  Future<void> _installArchiveFromPath(String filePath) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
-    try {
-      final file = File(filePath);
-      final installResult = await _installArchive(file);
-      
-      if (!mounted) return;
-      
-      installResult.when(
-        success: (mods, message) {
-          final importedMods = mods.join(', ');
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                loc.t(
-                  'marketplace.install_success',
-                  params: {
-                    'mods': importedMods.isEmpty
-                        ? loc.t('marketplace.install_success_default')
-                        : importedMods,
-                  },
-                ),
-              ),
-            ),
-          );
-          if (message != null && message.isNotEmpty) {
-            scaffoldMessenger.showSnackBar(SnackBar(content: Text(message)));
-          }
-        },
-        warning: (message) {
-          scaffoldMessenger.showSnackBar(SnackBar(content: Text(message)));
-        },
-        error: (message) {
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              content: Text(message),
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          backgroundColor: Theme.of(context).colorScheme.error,
-          content: Text(
-            loc.t('marketplace.download_failed', params: {'message': '$e'}),
-          ),
-        ),
-      );
-    }
-  }
-
-  Widget _buildProgressBar() {
-    return LinearProgressIndicator(
-      value: _progress > 0 && _progress < 1 ? _progress : null,
-    );
-  }
-
-  Widget _buildWebView(bool isDarkMode) {
-    if (_isDesktop) {
-      return _buildDesktopWebView(isDarkMode);
-    }
-    return _buildUnsupportedView(isDarkMode);
-  }
-
-  Widget _buildDesktopWebView(bool isDarkMode) {
-    return InAppWebView(
-      initialUrlRequest: URLRequest(url: _homeUri),
-      initialSettings: InAppWebViewSettings(
-        javaScriptEnabled: true,
-        transparentBackground: true,
-        useShouldOverrideUrlLoading: true,
-        incognito: false,
-        allowsInlineMediaPlayback: true,
-        supportZoom: true,
-        clearCache: false,
-        disableContextMenu: false,
-        allowsBackForwardNavigationGestures: true,
-        mediaPlaybackRequiresUserGesture: false,
-        useOnDownloadStart: true,
-        isFraudulentWebsiteWarningEnabled: true,
-      ),
-      onWebViewCreated: (controller) => _inAppWebViewController = controller,
-      shouldOverrideUrlLoading: (controller, action) async {
-        final url = action.request.url?.toString() ?? '';
-        final uri = Uri.tryParse(url);
-        
-        if (uri != null) {
-          final extension = path.extension(uri.path).toLowerCase();
-          if (extension == '.zip' || extension == '.rar' || extension == '.7z') {
-            final suggestedName = path.basename(uri.path);
-            final choice = await _showDownloadChoiceDialog(
-              context,
-              suggestedName: suggestedName,
-              url: url,
-            );
-            if (choice != _MarketplaceDownloadChoice.cancel && mounted) {
-              await _handleDownload(
-                uri: uri,
-                suggestedName: suggestedName,
-                autoInstall: choice == _MarketplaceDownloadChoice.downloadAndInstall,
-              );
-            }
-            return NavigationActionPolicy.CANCEL;
-          }
-        }
-        
-        return NavigationActionPolicy.ALLOW;
-      },
-      onLoadStart: (controller, url) {
-        if (url != null) {
-          setState(() {
-            _progress = 0;
-            _isLoading = true;
-          });
-        }
-      },
-      onLoadStop: (controller, url) async {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _progress = 0;
-        });
-      },
-      onProgressChanged: (controller, progress) {
-        if (!mounted) return;
-        setState(() {
-          _progress = progress / 100;
-          _isLoading = progress < 100;
-        });
-      },
-      onDownloadStartRequest: (controller, request) async {
-        final webUri = request.url;
-        final uri = Uri.parse(webUri.toString());
-
-        final choice = await _showDownloadChoiceDialog(
-          context,
-          suggestedName: request.suggestedFilename,
-          url: webUri.toString(),
-        );
-        if (choice == _MarketplaceDownloadChoice.cancel || !mounted) return;
-
-        await _handleDownload(
-          uri: uri,
-          suggestedName: request.suggestedFilename,
-          autoInstall: choice == _MarketplaceDownloadChoice.downloadAndInstall,
-        );
-      },
-    );
-  }
-
-  Future<void> _loadUri(WebUri uri) async {
-    if (_isDesktop) {
-      await _inAppWebViewController?.loadUrl(urlRequest: URLRequest(url: uri));
-    }
-  }
-
-  Future<void> _handleBackNavigation() async {
-    if (_isDesktop) {
-      if (await _inAppWebViewController?.canGoBack() ?? false) {
-        await _inAppWebViewController?.goBack();
-      }
-    }
-  }
-
-  Future<void> _handleForwardNavigation() async {
-    if (_isDesktop) {
-      if (await _inAppWebViewController?.canGoForward() ?? false) {
-        await _inAppWebViewController?.goForward();
-      }
-    }
-  }
-
-  Future<void> _handleReload() async {
-    if (_isDesktop) {
-      await _inAppWebViewController?.reload();
-    }
-  }
-
-  Future<void> _handleHomeNavigation() async {
-    await _loadUri(_homeUri);
-  }
-
-  void _performSearch(String query) {
-    if (!_isWebViewSupported) {
-      return;
-    }
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      _loadUri(_homeUri);
-      return;
-    }
-
-    _loadUri(WebUri(_game.marketplaceSearchUrl(trimmed)));
-  }
-
-  Future<_MarketplaceDownloadChoice> _showDownloadChoiceDialog(
-    BuildContext context, {
-    required String url,
-    String? suggestedName,
-  }) async {
-    final filename = suggestedName ?? path.basename(Uri.parse(url).path);
-    return await showDialog<_MarketplaceDownloadChoice>(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: Text(loc.t('marketplace.download_title')),
-              content: Text(
-                loc.t(
-                  'marketplace.download_message',
-                  params: {
-                    'filename': filename.isEmpty
-                        ? loc.t('marketplace.unknown_file')
-                        : filename,
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () =>
-                      Navigator.pop(context, _MarketplaceDownloadChoice.cancel),
-                  child: Text(loc.t('marketplace.download_cancel')),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(
-                    context,
-                    _MarketplaceDownloadChoice.downloadOnly,
-                  ),
-                  child: Text(loc.t('marketplace.download_only')),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(
-                    context,
-                    _MarketplaceDownloadChoice.downloadAndInstall,
-                  ),
-                  child: Text(loc.t('marketplace.download_install')),
-                ),
-              ],
-            );
-          },
-        ) ??
-        _MarketplaceDownloadChoice.cancel;
-  }
-
-  Future<void> _handleDownload({
-    required Uri uri,
-    String? suggestedName,
-    required bool autoInstall,
-  }) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final sanitizedFilename = _sanitizeFilename(
-      suggestedName?.isNotEmpty == true
-          ? suggestedName!
-          : path.basename(uri.path),
-      fallback:
-          'mod_${DateTime.now().millisecondsSinceEpoch}${path.extension(uri.path)}',
-    );
-
-    final progressNotifier = ValueNotifier<double?>(0);
-    final progressDialog = _showProgressDialog(progressNotifier);
-    var dialogClosed = false;
+  Future<void> _install(GameBananaMod mod) async {
+    setState(() => _installingModId = mod.id);
 
     try {
-      final downloadedFile = await _downloadToTemporaryFile(
-        uri: uri,
-        filename: sanitizedFilename,
-        progressNotifier: progressNotifier,
-      );
+      final files = await _client.files(mod.id);
+      final installable = files
+          .where((file) => ArchiveService.isArchiveFile(file.name))
+          .toList();
 
-      if (!dialogClosed && mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        dialogClosed = true;
-      }
-
-      await progressDialog;
-
-      if (!mounted) return;
-
-      if (!autoInstall) {
-        final savedFile = await _moveToDownloads(
-          downloadedFile,
-          sanitizedFilename,
-        );
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              loc.t('marketplace.download_saved', params: {'path': savedFile}),
-            ),
-          ),
-        );
+      if (installable.isEmpty) {
+        _snack('Keine unterstützte Archivdatei bei "${mod.name}"');
         return;
       }
 
-      final installResult = await _installArchive(downloadedFile);
-      if (!mounted) return;
+      final file = installable.first;
+      if (!file.isScanClean && !await _confirmFlaggedFile(file)) return;
 
-      installResult.when(
-        success: (mods, message) {
-          final importedMods = mods.join(', ');
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                loc.t(
-                  'marketplace.install_success',
-                  params: {
-                    'mods': importedMods.isEmpty
-                        ? loc.t('marketplace.install_success_default')
-                        : importedMods,
-                  },
-                ),
-              ),
-            ),
-          );
-          if (message != null && message.isNotEmpty) {
-            scaffoldMessenger.showSnackBar(SnackBar(content: Text(message)));
-          }
-        },
-        warning: (message) {
-          scaffoldMessenger.showSnackBar(SnackBar(content: Text(message)));
-        },
-        error: (message) {
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              content: Text(message),
-            ),
-          );
-        },
-      );
+      final archive = await _download(file);
+      if (archive == null) return;
+
+      if (!await _checksumMatches(archive, file)) {
+        _snack('Prüfsumme stimmt nicht, Installation abgebrochen', isError: true);
+        await archive.delete();
+        return;
+      }
+
+      await _importArchive(archive, mod);
     } catch (e) {
-      if (!dialogClosed && mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        dialogClosed = true;
-      }
-      await progressDialog;
-      if (!mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          backgroundColor: Theme.of(context).colorScheme.error,
-          content: Text(
-            loc.t('marketplace.download_failed', params: {'message': '$e'}),
-          ),
-        ),
-      );
+      _snack('$e', isError: true);
     } finally {
-      if (!dialogClosed && mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        await progressDialog;
-      }
-      progressNotifier.dispose();
+      if (mounted) setState(() => _installingModId = null);
     }
   }
 
-  Future<File> _downloadToTemporaryFile({
-    required Uri uri,
-    required String filename,
-    required ValueNotifier<double?> progressNotifier,
-  }) async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'zzz_marketplace_download_',
-    );
-    final targetFile = File(path.join(tempDir.path, filename));
-
-    final httpClient = HttpClient();
-    
-    // Fix SSL certificate issues on Windows and Linux
-    if (Platform.isWindows || Platform.isLinux) {
-      httpClient.badCertificateCallback = (cert, host, port) => true;
-    }
-
-    try {
-      final request = await httpClient.getUrl(uri);
-      final response = await request.close();
-
-      if (response.statusCode >= 400) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
-
-      final sink = targetFile.openWrite();
-      final total = response.contentLength;
-      int received = 0;
-      int lastProgressUpdate = 0;
-      const progressUpdateThreshold = 262144;
-
-      await response.listen(
-        (chunk) {
-          received += chunk.length;
-          sink.add(chunk);
-          
-          if (received - lastProgressUpdate >= progressUpdateThreshold || received == total) {
-            if (total > 0) {
-              progressNotifier.value = min(received / total, 1);
-            } else {
-              progressNotifier.value = null;
-            }
-            lastProgressUpdate = received;
-          }
-        },
-        onDone: () {},
-        onError: (e) => throw e,
-        cancelOnError: true,
-      ).asFuture();
-
-      await sink.flush();
-      await sink.close();
-      progressNotifier.value = 1;
-
-      return targetFile;
-    } finally {
-      httpClient.close();
-    }
-  }
-
-  Future<String> _moveToDownloads(File file, String filename) async {
-    final downloadsDir = Directory(
-      path.join(PathHelper.getAppDataPath(), 'downloads'),
-    );
-    if (!await downloadsDir.exists()) {
-      await downloadsDir.create(recursive: true);
-    }
-
-    final targetPath = path.join(downloadsDir.path, filename);
-    await file.copy(targetPath);
-    
-    try {
-      if (file.parent.path.contains('zzz_marketplace_download_')) {
-        await file.parent.delete(recursive: true);
-      } else {
-        await file.delete();
-      }
-    } catch (e) {
-      print('Marketplace: file delete after copy failed: $e');
-    }
-    
-    return targetPath;
-  }
-
-  Future<_InstallResult> _installArchive(File archiveFile) async {
-    print('Marketplace: starting archive install: ${archiveFile.path}');
-    print('Marketplace: file size: ${await archiveFile.length()} bytes');
-    
-    final config = await ApiService.getConfig();
-    final modsPath = config['mods_path'] ?? '';
-
-    if (modsPath.isEmpty) {
-      print('Marketplace: mods path not configured');
-      return _InstallResult.error(loc.t('marketplace.install_missing_path'));
-    }
-
-    try {
-      final extractionResult = await ArchiveService.extractArchive(
-        archiveFile: archiveFile,
-      );
-
-      if (!extractionResult.success) {
-        print('Marketplace: extraction failed: ${extractionResult.error}');
-        return _InstallResult.error(
-          extractionResult.error ?? loc.t('marketplace.install_unsupported'),
-        );
-      }
-
-      final directoriesToImport = extractionResult.extractedFolders ?? [];
-
-      if (directoriesToImport.isEmpty) {
-        return _InstallResult.warning(loc.t('marketplace.install_empty'));
-      }
-
-      final ModManagerService modManager =
-          await ApiService.getModManagerService();
-      final (importedMods, autoTags) = await modManager.importMods(
-        directoriesToImport,
-      );
-
-      if (importedMods.isEmpty) {
-        return _InstallResult.warning(loc.t('marketplace.install_duplicate'));
-      }
-
-      final tagSummary = autoTags.entries
-          .map((entry) => '${entry.key} → ${entry.value}')
-          .join(', ');
-
-      final message = tagSummary.isNotEmpty
-          ? loc.t('marketplace.install_tags', params: {'tags': tagSummary})
-          : null;
-
-      return _InstallResult.success(importedMods, message: message);
-    } finally {
-      if (await archiveFile.exists()) {
-        await _safeDeleteArchive(archiveFile);
-      }
-    }
-  }
-  
-  Future<void> _safeDeleteArchive(File archiveFile) async {
-    try {
-      final platformService = PlatformServiceFactory.getInstance();
-      final systemDownloadsPath = platformService.getSystemDownloadsPath();
-      
-      final archiveParentPath = archiveFile.parent.path;
-      
-      final isInSystemDownloads = systemDownloadsPath != null && 
-          path.equals(archiveParentPath, systemDownloadsPath);
-      
-      if (isInSystemDownloads) {
-        await archiveFile.delete();
-        print('Marketplace: deleted only the file from system downloads: ${archiveFile.path}');
-      } else {
-        await archiveFile.parent.delete(recursive: true);
-        print('Marketplace: deleted temp directory: ${archiveFile.parent.path}');
-      }
-    } catch (e) {
-      print('Marketplace: archive delete failed: $e');
-    }
-  }
-
-  Future<void> _showProgressDialog(ValueNotifier<double?> progressNotifier) {
-    final completer = Completer<void>();
-    showDialog<void>(
+  /// GameBanana scans uploads; a non-ok verdict is worth a stop, not a block.
+  Future<bool> _confirmFlaggedFile(GameBananaFile file) async {
+    final proceed = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return ValueListenableBuilder<double?>(
-          valueListenable: progressNotifier,
-          builder: (context, value, _) {
-            return AlertDialog(
-              title: Text(loc.t('marketplace.downloading')),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (value != null)
-                    LinearProgressIndicator(value: value)
-                  else
-                    const LinearProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    value != null
-                        ? '${(value * 100).clamp(0, 100).toStringAsFixed(0)}%'
-                        : loc.t('marketplace.download_progress_unknown'),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) => completer.complete());
-    return completer.future;
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Von GameBanana markiert'),
+        content: Text(
+          '${file.name} wurde als "${file.analysisResult}" eingestuft. '
+          'Das ist oft harmlos (z. B. eine mitgelieferte .exe), kann aber '
+          'auch Schadsoftware sein.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Trotzdem laden'),
+          ),
+        ],
+      ),
+    );
+
+    return proceed ?? false;
   }
 
-  String _sanitizeFilename(String input, {required String fallback}) {
-    final sanitized = input.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final trimmed = sanitized.trim();
-    if (trimmed.isEmpty) {
-      return fallback;
+  Future<File?> _download(GameBananaFile file) async {
+    final dir = await Directory.systemTemp.createTemp('modlinq-marketplace');
+    final target = File(path.join(dir.path, file.name));
+
+    final request = http.Request('GET', Uri.parse(file.downloadUrl));
+    request.headers['User-Agent'] = 'modlinq-marketplace';
+
+    final response = await http.Client().send(request);
+    if (response.statusCode != 200) {
+      _snack('Download fehlgeschlagen (${response.statusCode})', isError: true);
+      return null;
     }
-    return trimmed;
+
+    final sink = target.openWrite();
+    await response.stream.pipe(sink);
+
+    return target;
   }
-}
 
-class _InstallResult {
-  final List<String> mods;
-  final String? message;
-  final String? errorMessage;
+  /// GameBanana publishes an md5 per file; a truncated download fails here
+  /// instead of producing a broken mod folder.
+  Future<bool> _checksumMatches(File archive, GameBananaFile file) async {
+    final expected = file.md5;
+    if (expected == null || expected.isEmpty) return true;
 
-  const _InstallResult._({required this.mods, this.message, this.errorMessage});
+    final digest = await md5.bind(archive.openRead()).first;
+    return digest.toString().toLowerCase() == expected.toLowerCase();
+  }
 
-  factory _InstallResult.success(List<String> mods, {String? message}) =>
-      _InstallResult._(mods: mods, message: message);
+  /// Routes the archive to whichever installer the selected game uses.
+  Future<void> _importArchive(File archive, GameBananaMod mod) async {
+    final config = await ApiService.getConfigService();
+    final game = ref.read(selectedGameProvider);
 
-  factory _InstallResult.warning(String message) =>
-      _InstallResult._(mods: const [], message: message);
+    if (game.usesPakMods) {
+      final FileModManager? manager = game.usesPakMods && game.key == 'deadlock'
+          ? DeadlockModManager.fromConfig(config)
+          : NteModManager.fromConfig(config);
 
-  factory _InstallResult.error(String message) =>
-      _InstallResult._(mods: const [], errorMessage: message);
+      if (manager == null) {
+        _snack('Erst den Spielordner in den Einstellungen setzen', isError: true);
+        return;
+      }
 
-  void when({
-    required void Function(List<String> mods, String? message) success,
-    required void Function(String message) warning,
-    required void Function(String message) error,
-  }) {
-    if (errorMessage != null) {
-      error(errorMessage!);
+      final skipped = <String, String>{};
+      final imported = await manager.import([archive.path], skipped: skipped);
+
+      _snack(
+        imported.isNotEmpty
+            ? '"${imported.first.name}" importiert'
+            : skipped.values.firstOrNull ?? 'Nichts importiert',
+        isError: imported.isEmpty,
+      );
       return;
     }
 
-    if (mods.isNotEmpty) {
-      success(mods, message);
+    // 3DMigoto games: unpack, then hand the folders to the existing importer.
+    final extraction = await ArchiveService.extractArchive(archiveFile: archive);
+    if (!extraction.success) {
+      _snack(extraction.error ?? 'Archiv nicht unterstützt', isError: true);
       return;
     }
 
-    if (message != null) {
-      warning(message!);
+    final folders = extraction.extractedFolders ?? const [];
+    if (folders.isEmpty) {
+      _snack('Archiv enthielt keinen Mod-Ordner', isError: true);
+      return;
     }
+
+    final modManager = await ApiService.getModManagerService();
+    final (imported, _) = await modManager.importMods(folders);
+
+    _snack(
+      imported.isNotEmpty
+          ? '"${mod.name}" installiert'
+          : 'Mod war schon vorhanden',
+      isError: imported.isEmpty,
+    );
+  }
+
+  void _snack(String message, {bool isError = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red[700] : null,
+      ),
+    );
   }
 }
+

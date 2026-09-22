@@ -1,0 +1,163 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'package:modlinq/services/gamebanana_client.dart';
+
+/// Shaped like the real `Subfeed` response, trimmed to the fields used.
+Map<String, dynamic> _feed() => {
+  '_aMetadata': {'_nRecordCount': 2},
+  '_aRecords': [
+    {
+      '_idRow': 719772,
+      '_sModelName': 'Mod',
+      '_sName': "Splatoon 3's Smallfry",
+      '_sProfileUrl': 'https://gamebanana.com/mods/719772',
+      '_tsDateAdded': 1790095309,
+      '_tsDateModified': 1790095400,
+      '_bHasFiles': true,
+      '_aSubmitter': {'_sName': 'Yellowsunflower01'},
+      '_aRootCategory': {'_sName': 'Skins'},
+      '_aPreviewMedia': {
+        '_aImages': [
+          {
+            '_sBaseUrl': 'https://images.gamebanana.com/img/ss/mods',
+            '_sFile': '6ab2afa6a79d4.jpg',
+            '_sFile220': '220-90_6ab2afa6a79d4.jpg',
+          },
+        ],
+      },
+    },
+    {
+      '_idRow': 4242,
+      '_sModelName': 'Tutorial',
+      '_sName': 'How to install',
+      '_sProfileUrl': 'https://gamebanana.com/tuts/4242',
+      '_bHasFiles': false,
+      '_aSubmitter': {'_sName': 'someone'},
+      '_aPreviewMedia': {'_aImages': []},
+    },
+  ],
+};
+
+void main() {
+  group('feed', () {
+    test('maps a record to a mod, thumbnail included', () async {
+      final client = GameBananaClient(
+        client: MockClient((_) async => http.Response(jsonEncode(_feed()), 200)),
+      );
+
+      final mods = await client.feed(gameId: 20948);
+
+      expect(mods.single.id, 719772);
+      expect(mods.single.name, "Splatoon 3's Smallfry");
+      expect(mods.single.author, 'Yellowsunflower01');
+      expect(mods.single.category, 'Skins');
+      expect(
+        mods.single.thumbnailUrl,
+        'https://images.gamebanana.com/img/ss/mods/220-90_6ab2afa6a79d4.jpg',
+      );
+      expect(mods.single.updatedAt?.year, greaterThan(2020));
+    });
+
+    test('drops everything that is not a mod', () async {
+      final client = GameBananaClient(
+        client: MockClient((_) async => http.Response(jsonEncode(_feed()), 200)),
+      );
+
+      final mods = await client.feed(gameId: 20948);
+
+      expect(mods.length, 1);
+    });
+
+    test('asks for the requested game, page and sort', () async {
+      late Uri seen;
+      final client = GameBananaClient(
+        client: MockClient((request) async {
+          seen = request.url;
+          return http.Response(jsonEncode(_feed()), 200);
+        }),
+      );
+
+      await client.feed(gameId: 23012, page: 3, sort: 'popular');
+
+      expect(seen.path, '/apiv11/Game/23012/Subfeed');
+      expect(seen.queryParameters['_nPage'], '3');
+      expect(seen.queryParameters['_sSort'], 'popular');
+    });
+
+    test('an api error is surfaced, not swallowed', () async {
+      final client = GameBananaClient(
+        client: MockClient((_) async => http.Response('nope', 503)),
+      );
+
+      expect(
+        () => client.feed(gameId: 20948),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+  });
+
+  group('search', () {
+    test('scopes the query to one game', () async {
+      late Uri seen;
+      final client = GameBananaClient(
+        client: MockClient((request) async {
+          seen = request.url;
+          return http.Response(jsonEncode(_feed()), 200);
+        }),
+      );
+
+      await client.search(gameId: 20948, query: 'neon skin');
+
+      expect(seen.queryParameters['_idGameRow'], '20948');
+      expect(seen.queryParameters['_sSearchString'], 'neon skin');
+      expect(seen.queryParameters['_sModelName'], 'Mod');
+    });
+  });
+
+  group('files', () {
+    Map<String, dynamic> downloadPage() => {
+      '_aFiles': [
+        {
+          '_sFile': 'skin.zip',
+          '_nFilesize': 2407489,
+          '_sDownloadUrl': 'https://gamebanana.com/dl/1823738',
+          '_sMd5Checksum': '12293c0446949cb941e8f8573df0a9ee',
+          '_sAnalysisResult': 'ok',
+        },
+        {
+          '_sFile': 'sketchy.7z',
+          '_nFilesize': 42,
+          '_sDownloadUrl': 'https://gamebanana.com/dl/2',
+          '_sAnalysisResult': 'contains_executable',
+        },
+      ],
+    };
+
+    test('carries checksum and scan verdict', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(downloadPage()), 200),
+        ),
+      );
+
+      final files = await client.files(719772);
+
+      expect(files.first.name, 'skin.zip');
+      expect(files.first.md5, '12293c0446949cb941e8f8573df0a9ee');
+      expect(files.first.isScanClean, isTrue);
+      expect(files.last.isScanClean, isFalse);
+    });
+
+    test('a mod without files returns an empty list', () async {
+      final client = GameBananaClient(
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+
+      expect(await client.files(1), isEmpty);
+    });
+  });
+}

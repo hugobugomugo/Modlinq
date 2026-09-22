@@ -184,6 +184,26 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     ];
   }
 
+  /// Mods the user hid for the selected game. Hiding is display-only: the
+  /// files in the game folder are left exactly as they are.
+  Set<String> _hiddenMods = const {};
+
+  /// Drops hidden mods before anything reaches the grid, so every count,
+  /// filter and character bucket agrees with what is on screen.
+  List<ModInfo> _withoutHidden(List<ModInfo> mods) {
+    if (_hiddenMods.isEmpty) return mods;
+
+    return mods.where((mod) => !_hiddenMods.contains(mod.id)).toList();
+  }
+
+  Future<void> _loadHiddenMods() async {
+    final config = await ApiService.getConfigService();
+    final hidden = config.hiddenMods(ref.read(selectedGameProvider).key).toSet();
+    if (!mounted) return;
+
+    setState(() => _hiddenMods = hidden);
+  }
+
   /// Adapter for the selected copy-based game, or null when its folder has
   /// not been located yet.
   ///
@@ -224,7 +244,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     // Reapply intent so a mod the game had locked earlier is retried.
     final sync = await adapter.manager.syncWithIntent();
 
-    final mods = adapter.listMods();
+    await _loadHiddenMods();
+    final mods = _withoutHidden(adapter.listMods());
     final characters = <CharacterInfo>[];
 
     final favorites = mods.where((mod) => mod.isFavorite).toList();
@@ -303,6 +324,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
     try {
       final loadedMods = await ApiService.getMods(cancelled: cancelled);
+      await _loadHiddenMods();
       final configService = await ApiService.getConfigService();
       final favoriteSet = configService.favoriteMods.toSet();
       final currentGame = ref.read(selectedGameProvider);
@@ -315,6 +337,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final List<String> validModIds = [];
 
       for (var oldMod in loadedMods) {
+        if (_hiddenMods.contains(oldMod.id)) continue;
         // One filesystem check per mod, so a switch should not have to sit
         // through the whole library before the new game starts loading.
         if (CancellationToken.isCancelledOrNull(cancelled)) return;
@@ -1778,6 +1801,55 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     );
   }
 
+  /// Hides a mod from the grid, optionally uninstalling it as well.
+  ///
+  /// Both are reversible: the library copy is never touched, so unhiding in
+  /// settings brings the mod back exactly as it was.
+  Future<void> _hideMod(ModInfo mod) async {
+    final alsoUninstall = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('"${mod.name}" ausblenden'),
+        content: const Text(
+          'Der Mod verschwindet aus der Übersicht. Seine Dateien im Spiel '
+          'bleiben unangetastet, solange du ihn nicht zusätzlich '
+          'deinstallierst. Beides lässt sich in den Einstellungen '
+          'rückgängig machen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Nur ausblenden'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Ausblenden + deinstallieren'),
+          ),
+        ],
+      ),
+    );
+
+    if (alsoUninstall == null) return;
+
+    if (alsoUninstall && mod.isActive) {
+      await toggleMod(mod);
+    }
+
+    final config = await ApiService.getConfigService();
+    await config.setModHidden(
+      ref.read(selectedGameProvider).key,
+      mod.id,
+      true,
+    );
+
+    await loadMods(showLoading: false);
+    _showSnack('"${mod.name}" ausgeblendet');
+  }
+
   void _showContextMenu(BuildContext context, ModInfo mod, Offset position) {
     showMenu(
       context: context,
@@ -1788,6 +1860,18 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         position.dy,
       ),
       items: [
+        PopupMenuItem(
+          child: const Row(
+            children: [
+              Icon(Icons.visibility_off_rounded, size: 18),
+              SizedBox(width: 8),
+              Text('Ausblenden'),
+            ],
+          ),
+          onTap: () {
+            Future.delayed(Duration.zero, () => _hideMod(mod));
+          },
+        ),
         PopupMenuItem(
           child: Row(
             children: [

@@ -8,6 +8,8 @@ import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/game_roster.dart';
+import '../games/deadlock/deadlock_detection.dart';
+import '../games/deadlock/deadlock_manager.dart';
 import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
 import '../services/nte_loader_installer.dart';
@@ -31,6 +33,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   final _wwSaveModsPathController = TextEditingController();
   final _nteGamePathController = TextEditingController();
   final _nteLibraryPathController = TextEditingController();
+  final _deadlockGamePathController = TextEditingController();
+  final _deadlockLibraryPathController = TextEditingController();
   bool isLoading = false;
   String _selectedLanguage = 'en';
   bool _isUpdatingLanguage = false;
@@ -42,6 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteHideUid = false;
   bool _nteLoaderBusy = false;
   bool _checkingUpdate = false;
+  List<String> _hiddenMods = const [];
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -71,6 +76,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     _wwSaveModsPathController.dispose();
     _nteGamePathController.dispose();
     _nteLibraryPathController.dispose();
+    _deadlockGamePathController.dispose();
+    _deadlockLibraryPathController.dispose();
     super.dispose();
   }
 
@@ -86,6 +93,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         _wwSaveModsPathController.text = config['save_mods_path_ww'] ?? '';
         _nteGamePathController.text = configService.nteGamePath ?? '';
         _nteLibraryPathController.text = NteModManager.resolveLibraryPath(configService);
+        _deadlockGamePathController.text = configService.deadlockGamePath ?? '';
+        _deadlockLibraryPathController.text =
+            DeadlockModManager.resolveLibraryPath(configService);
         _selectedLanguage = config['language'] ?? 'en';
         _persistModSettings = configService.persistModSettings;
         _testChannel = configService.testChannel;
@@ -94,6 +104,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
 
       _nteLoader = NteLoaderService.fromConfig(configService);
       _refreshNteLoader();
+      _loadHiddenMods();
     } catch (e) {
       setState(() => isLoading = false);
     }
@@ -146,6 +157,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     setState(() => _nteGamePathController.text = result);
   }
 
+  /// Finds Deadlock in a Steam library, so the user rarely has to browse.
+  Future<void> pickDeadlockGamePath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result == null) return;
+
+    if (!DeadlockDetection.validate(result).valid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kein gültiger Deadlock-Ordner (game/citadel fehlt)'),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _deadlockGamePathController.text = result);
+  }
+
+  Future<void> pickDeadlockLibraryPath() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null) {
+      setState(() => _deadlockLibraryPathController.text = result);
+    }
+  }
+
   Future<void> pickNteLibraryPath() async {
     final result = await FilePicker.getDirectoryPath();
     if (result != null) {
@@ -159,6 +196,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
       final configService = await ApiService.getConfigService();
       await configService.setNteGamePath(_nteGamePathController.text);
       await configService.setNteLibraryPath(_nteLibraryPathController.text);
+      await configService.setDeadlockGamePath(_deadlockGamePathController.text);
+      await configService.setDeadlockLibraryPath(
+        _deadlockLibraryPathController.text,
+      );
       await ApiService.updateConfig(
         modsPath: _modsPathController.text,
         saveModsPath: _saveModsPathController.text,
@@ -370,6 +411,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                             ],
                           ),
                           _buildCollapsibleSection(
+                            title: GameType.deadlock.displayName,
+                            subtitle: loc.t('settings.sections.paths'),
+                            isDarkMode: isDarkMode,
+                            initiallyExpanded: selectedGame == GameType.deadlock,
+                            children: [
+                              _buildPathField(
+                                label: 'Deadlock-Ordner',
+                                hint: r'...\steamapps\common\Deadlock',
+                                controller: _deadlockGamePathController,
+                                onBrowse: pickDeadlockGamePath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPathField(
+                                label: 'Mod-Bibliothek',
+                                hint: '~/.local/share/modlinq/deadlock_mods',
+                                controller: _deadlockLibraryPathController,
+                                onBrowse: pickDeadlockLibraryPath,
+                                isDarkMode: isDarkMode,
+                                loc: loc,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildDeadlockTools(isDarkMode),
+                            ],
+                          ),
+                          _buildCollapsibleSection(
                             title: loc.t('settings.sections.general'),
                             isDarkMode: isDarkMode,
                             children: [
@@ -428,6 +496,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               ),
                               const SizedBox(height: 20),
                               _buildUpdateCheck(isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Ausgeblendete Mods'),
+                              const SizedBox(height: 16),
+                              _buildHiddenMods(isDarkMode),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -1285,6 +1357,161 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         ],
       ),
     );
+  }
+
+  Future<void> _loadHiddenMods() async {
+    final configService = await ApiService.getConfigService();
+    final hidden = configService.hiddenMods(
+      ref.read(selectedGameProvider).key,
+    );
+    if (!mounted) return;
+
+    setState(() => _hiddenMods = hidden);
+  }
+
+  /// Lists what the user hid in the mods grid, with a way back.
+  ///
+  /// Hiding lives here rather than only in the grid because a hidden mod is
+  /// invisible there by definition — without this list it could never be
+  /// undone.
+  Widget _buildHiddenMods(bool isDarkMode) {
+    final game = ref.watch(selectedGameProvider);
+
+    if (_hiddenMods.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(
+          'Für ${game.displayName} ist nichts ausgeblendet. Rechtsklick auf '
+          'eine Mod-Kachel → „Ausblenden" nimmt sie aus der Übersicht, ohne '
+          'sie zu löschen.',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final name in _hiddenMods)
+              InputChip(
+                label: Text(name, style: const TextStyle(fontSize: 12)),
+                deleteIcon: const Icon(Icons.visibility_rounded, size: 16),
+                onDeleted: () => _unhideMod(name),
+                onPressed: () => _unhideMod(name),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            'Klick blendet wieder ein. Ein ausgeblendeter Mod, den du zusätzlich '
+            'deinstalliert hast, kommt als deaktiviert zurück — die Kopie in der '
+            'Bibliothek wurde nie angefasst.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _unhideMod(String modName) async {
+    final configService = await ApiService.getConfigService();
+    await configService.setModHidden(
+      ref.read(selectedGameProvider).key,
+      modName,
+      false,
+    );
+
+    await _loadHiddenMods();
+  }
+
+  /// Auto-detect plus the gameinfo repair, which is the fix for "all my mods
+  /// vanished after a game update".
+  Widget _buildDeadlockTools(bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                final install = DeadlockDetection.autoDetect();
+                if (!mounted) return;
+
+                if (!install.valid) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Deadlock in keiner Steam-Bibliothek gefunden'),
+                    ),
+                  );
+                  return;
+                }
+
+                setState(() => _deadlockGamePathController.text = install.path);
+              },
+              icon: const Icon(Icons.search, size: 16),
+              label: const Text('Automatisch finden'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _repairDeadlockGameinfo,
+              icon: const Icon(Icons.healing_rounded, size: 16),
+              label: const Text('gameinfo.gi reparieren'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            'Deadlock-Updates überschreiben gameinfo.gi und entfernen dabei den '
+            'addons-Pfad — dann lädt das Spiel keinen einzigen Mod mehr. Der '
+            'Reparatur-Knopf setzt die Zeile zurück; beim Aktivieren eines Mods '
+            'passiert das ohnehin automatisch.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _repairDeadlockGameinfo() async {
+    final configService = await ApiService.getConfigService();
+    final manager = DeadlockModManager.fromConfig(configService);
+    if (!mounted) return;
+
+    if (manager == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erst den Deadlock-Ordner setzen')),
+      );
+      return;
+    }
+
+    try {
+      final repaired = await manager.repairGameinfo();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            repaired
+                ? 'addons-Pfad wieder eingetragen'
+                : 'gameinfo.gi war schon in Ordnung',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   /// Version row with a manual check, so nobody has to restart the app to

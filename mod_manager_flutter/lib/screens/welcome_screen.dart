@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
+import '../games/deadlock/deadlock_detection.dart';
 import '../services/nte_game_detection.dart';
 import '../utils/state_providers.dart';
 import '../l10n/app_localizations.dart';
@@ -133,6 +134,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
       }
       if (_nteLibraryPathController.text.isNotEmpty) {
         await config.setNteLibraryPath(_nteLibraryPathController.text);
+      }
+      if (_deadlockGamePathController.text.isNotEmpty) {
+        await config.setDeadlockGamePath(_deadlockGamePathController.text);
       }
 
       widget.onComplete();
@@ -560,7 +564,50 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
     );
   }
 
+  /// Looks for Deadlock in the Steam libraries, same as the NTE detect button.
+  Future<void> _detectDeadlockInstall() async {
+    final loc = context.loc;
+    final install = DeadlockDetection.autoDetect();
+    if (!mounted) return;
+
+    if (install.valid) {
+      setState(() => _deadlockGamePathController.text = install.path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(install.path)),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(loc.t('welcome.directories.detect_none'))),
+    );
+  }
+
   Widget _buildGameTab(GameType game, AppLocalizations loc, bool isDarkMode) {
+    if (game == GameType.deadlock) {
+      return Column(
+        children: [
+          _buildPathField(
+            label: 'Deadlock-Ordner',
+            hint: r'...\steamapps\common\Deadlock',
+            controller: _deadlockGamePathController,
+            onBrowse: () => _pickInto(_deadlockGamePathController),
+            isDarkMode: isDarkMode,
+            loc: loc,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _detectDeadlockInstall,
+              icon: const Icon(Icons.search, size: 18),
+              label: Text(loc.t('welcome.directories.detect')),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (game == GameType.nte) {
       return Column(
         children: [

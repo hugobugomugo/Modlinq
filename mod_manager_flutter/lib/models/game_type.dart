@@ -1,8 +1,13 @@
+import '../games/game_registry.dart';
+
 /// Games supported by the mod manager.
 ///
 /// [zzz] and [wutheringWaves] are managed through 3dmigoto-style symlinked
 /// mod folders. [nte] uses Unreal `.pak` / `.asi` files and is handled by a
 /// different backend.
+///
+/// Labels and capabilities live in the game modules; this extension only
+/// forwards, so nothing has to be kept in sync by hand.
 enum GameType { zzz, wutheringWaves, nte }
 
 extension GameTypeX on GameType {
@@ -16,26 +21,18 @@ extension GameTypeX on GameType {
   };
 
   /// Short label for the game switcher.
-  String get shortLabel => switch (this) {
-    GameType.zzz => 'ZZZ',
-    GameType.wutheringWaves => 'WW',
-    GameType.nte => 'NTE',
-  };
+  String get shortLabel => GameRegistry.of(this).shortLabel;
 
   /// Full game name, used for tooltips.
-  String get displayName => switch (this) {
-    GameType.zzz => 'Zenless Zone Zero',
-    GameType.wutheringWaves => 'Wuthering Waves',
-    GameType.nte => 'Neverness to Everness',
-  };
+  String get displayName => GameRegistry.of(this).displayName;
 
   /// Whether this game organises mods by character.
   ///
   /// NTE mods are grouped into user-defined categories instead.
-  bool get hasCharacters => this != GameType.nte;
+  bool get hasCharacters => GameRegistry.of(this).caps.hasCharacters;
 
   /// Whether mods are applied as `.pak` / `.asi` files rather than symlinks.
-  bool get usesPakMods => this == GameType.nte;
+  bool get usesPakMods => GameRegistry.of(this).caps.usesPakMods;
 
   static GameType fromKey(String? key) => switch (key) {
     'ww' => GameType.wutheringWaves,

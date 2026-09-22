@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as path;
 
+import '../games/game_module.dart';
+import '../games/game_registry.dart';
 import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/archive_service.dart';
@@ -27,7 +29,11 @@ class MarketplaceScreen extends ConsumerStatefulWidget {
 }
 
 class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
-  static final WebUri _homeUri = WebUri('https://gamebanana.com/games/19567');
+  /// Hub of the game that is currently selected. Hardcoding one id meant
+  /// Wuthering Waves and NTE both browsed the ZZZ catalogue.
+  GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
+
+  WebUri get _homeUri => WebUri(_game.marketplaceUrl);
 
   InAppWebViewController? _inAppWebViewController;
   final TextEditingController _searchController = TextEditingController();
@@ -729,10 +735,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       return;
     }
 
-    final searchUri = WebUri(
-      'https://gamebanana.com/search?_type=Mods&game=19567&query=${Uri.encodeComponent(trimmed)}',
-    );
-    _loadUri(searchUri);
+    _loadUri(WebUri(_game.marketplaceSearchUrl(trimmed)));
   }
 
   Future<_MarketplaceDownloadChoice> _showDownloadChoiceDialog(

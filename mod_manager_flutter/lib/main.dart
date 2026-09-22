@@ -16,6 +16,7 @@ import 'utils/state_providers.dart';
 import 'services/api_service.dart';
 import 'core/app_version.dart';
 import 'l10n/app_localizations.dart';
+import 'screens/components/game_rail_sidebar.dart';
 import 'screens/components/update_dialog.dart';
 import 'services/nte_loader_task.dart';
 
@@ -283,6 +284,8 @@ class _MainScreenState extends ConsumerState<MainScreen>
           Expanded(
             child: Row(
               children: [
+                // Game rail: one tile per game, grows downwards
+                const GameRailSidebar(),
                 // Sidebar
                 SlideTransition(
                   position:
@@ -424,20 +427,10 @@ class _MainScreenState extends ConsumerState<MainScreen>
                         ] else ...[
                           const SizedBox(height: 20),
                         ],
-                        // Game switcher
-                        if (!isSidebarCollapsed) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: _buildGameSwitcher(context, selectedGame, isDarkMode),
-                          ),
-                          const SizedBox(height: 16),
-                        ] else ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: _buildGameSwitcherCollapsed(context, selectedGame),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
+                        // The game switcher moved into the rail on the far
+                        // left, which scrolls instead of squeezing every game
+                        // into one row.
+                        const SizedBox(height: 8),
                         // Navigation
                         AnimationLimiter(
                           child: Column(
@@ -719,118 +712,6 @@ class _MainScreenState extends ConsumerState<MainScreen>
             color: isDarkMode
                 ? Colors.white.withValues(alpha: 0.7)
                 : Colors.black.withValues(alpha: 0.7),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGameSwitcher(BuildContext context, GameType selected, bool isDarkMode) {
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          for (final game in GameType.values)
-            _buildGameButton(
-              label: game.shortLabel,
-              game: game,
-              selected: selected,
-              isDarkMode: isDarkMode,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGameSwitcherCollapsed(BuildContext context, GameType selected) {
-    return Column(
-      children: [
-        for (final game in GameType.values) ...[
-          if (game != GameType.values.first) const SizedBox(height: 4),
-          _buildGameIconButton(
-            game: game,
-            selected: selected,
-            label: game.shortLabel,
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildGameButton({
-    required String label,
-    required GameType game,
-    required GameType selected,
-    required bool isDarkMode,
-  }) {
-    final isActive = selected == game;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => ref.read(selectedGameProvider.notifier).setValue(game),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            gradient: isActive
-                ? const LinearGradient(
-                    colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)],
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: isActive
-                ? [BoxShadow(color: const Color(0xFF0EA5E9).withValues(alpha: 0.3), blurRadius: 6)]
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : Colors.grey[500],
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGameIconButton({
-    required GameType game,
-    required GameType selected,
-    required String label,
-  }) {
-    final isActive = selected == game;
-    return GestureDetector(
-      onTap: () => ref.read(selectedGameProvider.notifier).setValue(game),
-      child: Tooltip(
-        message: game.displayName,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 48,
-          height: 28,
-          decoration: BoxDecoration(
-            gradient: isActive
-                ? const LinearGradient(colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)])
-                : null,
-            color: isActive ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : Colors.grey[600],
-              ),
-            ),
           ),
         ),
       ),

@@ -12,7 +12,17 @@ class UpdateDialog extends StatefulWidget {
   final UpdateInfo info;
   final UpdateService service;
 
-  const UpdateDialog({super.key, required this.info, required this.service});
+  /// Decides how the update is applied: a portable copy swaps its own files,
+  /// an installed copy re-runs the installer so shortcuts and the uninstall
+  /// entry survive.
+  final InstallKind installKind;
+
+  const UpdateDialog({
+    super.key,
+    required this.info,
+    required this.service,
+    this.installKind = InstallKind.portable,
+  });
 
   /// checks in the background and only shows a dialog when something is there
   static Future<void> maybeShow(
@@ -21,7 +31,8 @@ class UpdateDialog extends StatefulWidget {
     bool testChannel = false,
   }) async {
     final svc = service ?? UpdateService();
-    if (await UpdateService.detectInstallKind() == InstallKind.managed) return;
+    final kind = await UpdateService.detectInstallKind();
+    if (kind == InstallKind.managed) return;
 
     UpdateInfo? info;
     try {
@@ -31,10 +42,18 @@ class UpdateDialog extends StatefulWidget {
     }
     if (info == null || !context.mounted) return;
 
+    // An installed copy without an installer asset in the release would have
+    // nothing to run, and swapping Program Files files would fail.
+    if (kind == InstallKind.installed && info.installerUrl == null) return;
+
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => UpdateDialog(info: info!, service: svc),
+      builder: (_) => UpdateDialog(
+        info: info!,
+        service: svc,
+        installKind: kind,
+      ),
     );
   }
 
@@ -50,19 +69,25 @@ class _UpdateDialogState extends State<UpdateDialog> {
   Future<void> _run() async {
     final svc = widget.service;
     final info = widget.info;
+    final viaInstaller = widget.installKind == InstallKind.installed;
+
     try {
       setState(() => _stage = _Stage.downloading);
-      final zip = await svc.downloadAsset(
-        info,
-        onProgress: (received, total) {
-          if (!mounted || total <= 0) return;
-          setState(() => _progress = received / total);
-        },
-      );
+      void onProgress(int received, int total) {
+        if (!mounted || total <= 0) return;
+        setState(() => _progress = received / total);
+      }
+
+      final file = viaInstaller
+          ? await svc.downloadInstaller(info, onProgress: onProgress)
+          : await svc.downloadAsset(info, onProgress: onProgress);
 
       setState(() => _stage = _Stage.verifying);
-      final expected = await svc.fetchExpectedChecksum(info);
-      if (expected != null && !await svc.verifyChecksum(zip, expected)) {
+      final expected = await svc.fetchExpectedChecksum(
+        info,
+        fileName: viaInstaller ? info.installerName : null,
+      );
+      if (expected != null && !await svc.verifyChecksum(file, expected)) {
         setState(() {
           _stage = _Stage.failed;
           _error = 'checksum mismatch, update aborted';
@@ -71,7 +96,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
       }
 
       setState(() => _stage = _Stage.applying);
-      final staging = await svc.stageUpdate(zip);
+      if (viaInstaller) {
+        await svc.runInstaller(file);
+        exit(0);
+      }
+
+      final staging = await svc.stageUpdate(file);
       await svc.applyUpdate(staging);
       exit(0);
     } catch (e) {

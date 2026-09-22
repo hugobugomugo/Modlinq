@@ -4,7 +4,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
+
 import 'package:modlinq/core/app_version.dart';
+import 'package:modlinq/models/update_info.dart';
 import 'package:modlinq/services/update_service.dart';
 
 void main() {
@@ -102,6 +105,54 @@ void main() {
       expect(UpdateService.isSystemPath(r'D:\games\modlinq'), isFalse);
     });
 
+    test('an install with an uninstaller next to it is installed, not portable',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('modlinq-installed');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      File(p.join(dir.path, 'unins000.exe')).writeAsStringSync('');
+
+      expect(
+        await UpdateService.detectInstallKind(dir: dir),
+        InstallKind.installed,
+      );
+    });
+
+    test('the installer is verified against its own checksum line', () async {
+      final zipSum = 'a' * 64;
+      final exeSum = 'b' * 64;
+      final info = UpdateInfo(
+        version: '2.1.0',
+        tag: 'v2.1.0',
+        notes: '$zipSum  modlinq-2.1.0-windows-x64.zip\n'
+            '$exeSum  modlinq-setup-2.1.0.exe\n',
+        assetName: 'modlinq-2.1.0-windows-x64.zip',
+        assetUrl: 'https://example.test/windows.zip',
+        assetSize: 1,
+        installerName: 'modlinq-setup-2.1.0.exe',
+        installerUrl: 'https://example.test/setup.exe',
+      );
+
+      final svc = UpdateService(
+        client: MockClient((_) async => http.Response('nope', 404)),
+      );
+
+      expect(
+        await svc.fetchExpectedChecksum(info, fileName: info.installerName),
+        exeSum,
+      );
+      expect(
+        await svc.fetchExpectedChecksum(info),
+        zipSum,
+      );
+    });
+
+    test('an installed copy updates through its installer', () {
+      expect(
+        UpdateService.installerArgs(),
+        ['/SILENT', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
+      );
+    });
+
     test('a writable user dir is portable', () async {
       final tmp = await Directory.systemTemp.createTemp('modlinq-kind');
       addTearDown(() => tmp.delete(recursive: true));
@@ -135,12 +186,47 @@ void main() {
               'size': 5678,
             },
             {
+              'name': 'modlinq-setup-2.1.0.exe',
+              'browser_download_url': 'https://example.test/setup.exe',
+              'size': 4321,
+            },
+            {
               'name': 'SHA256SUMS.txt',
               'browser_download_url': 'https://example.test/SHA256SUMS.txt',
               'size': 90,
             },
           ],
         };
+
+    test('carries the installer asset alongside the portable zip', () async {
+      final svc = UpdateService(
+        client: MockClient((_) async => http.Response(
+              jsonEncode(release('v2.1.0')),
+              200,
+            )),
+      );
+
+      final info = await svc.checkForUpdate(current: '2.0.0');
+
+      expect(info!.installerName, 'modlinq-setup-2.1.0.exe');
+      expect(info.installerUrl, 'https://example.test/setup.exe');
+    });
+
+    test('a release without an installer still updates the portable copy', () async {
+      final json = release('v2.1.0');
+      (json['assets'] as List).removeWhere(
+        (a) => (a as Map)['name'] == 'modlinq-setup-2.1.0.exe',
+      );
+
+      final svc = UpdateService(
+        client: MockClient((_) async => http.Response(jsonEncode(json), 200)),
+      );
+
+      final info = await svc.checkForUpdate(current: '2.0.0');
+
+      expect(info, isNotNull);
+      expect(info!.installerUrl, isNull);
+    });
 
     test('returns info when the release is newer', () async {
       final svc = UpdateService(

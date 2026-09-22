@@ -7,6 +7,11 @@ class UpdateInfo {
   final int assetSize;
   final String? checksumUrl;
 
+  /// Windows installer asset, when the release ships one. Only an installed
+  /// copy uses it; portable copies always swap the zip.
+  final String? installerName;
+  final String? installerUrl;
+
   const UpdateInfo({
     required this.version,
     required this.tag,
@@ -15,5 +20,7 @@ class UpdateInfo {
     required this.assetUrl,
     required this.assetSize,
     this.checksumUrl,
+    this.installerName,
+    this.installerUrl,
   });
 }

@@ -14,7 +14,12 @@ enum InstallKind {
   /// unpacked zip the user owns, safe to replace in place
   portable,
 
-  /// distro or system managed (aur, /usr, /opt, program files), update via the package manager
+  /// put there by the Windows installer, which also owns the uninstall entry.
+  /// Updates re-run the installer instead of swapping files, so the install
+  /// keeps its shortcuts, its Program Files location and its uninstaller.
+  installed,
+
+  /// distro or system managed (aur, /usr, /opt), update via the package manager
   managed,
 }
 
@@ -113,9 +118,26 @@ class UpdateService {
     return lower.contains('/program files');
   }
 
+  /// Inno Setup drops its uninstaller next to the binary, which is the only
+  /// reliable marker that this copy came from the installer.
+  static const String uninstallerName = 'unins000.exe';
+
+  /// Silent enough to feel like an in-app update, but still closes and
+  /// restarts the running app so files are not locked.
+  static List<String> installerArgs() => const [
+    '/SILENT',
+    '/CLOSEAPPLICATIONS',
+    '/RESTARTAPPLICATIONS',
+  ];
+
   /// managed installs cannot self update, the package manager owns the files
   static Future<InstallKind> detectInstallKind({Directory? dir}) async {
     final d = dir ?? installDir();
+
+    if (File(path.join(d.path, uninstallerName)).existsSync()) {
+      return InstallKind.installed;
+    }
+
     if (isSystemPath(d.path)) return InstallKind.managed;
     // final say: can we actually write next to the binary
     try {
@@ -175,10 +197,14 @@ class UpdateService {
     final suffix = platformAssetSuffix();
 
     Map<String, dynamic>? asset;
+    Map<String, dynamic>? installer;
     String? checksumUrl;
     for (final a in assets.cast<Map<String, dynamic>>()) {
       final name = (a['name'] ?? '') as String;
       if (name.endsWith(suffix)) asset = a;
+      if (name.startsWith('modlinq-setup-') && name.endsWith('.exe')) {
+        installer = a;
+      }
       if (name == 'SHA256SUMS.txt') {
         checksumUrl = a['browser_download_url'] as String?;
       }
@@ -193,24 +219,58 @@ class UpdateService {
       assetUrl: asset['browser_download_url'] as String,
       assetSize: (asset['size'] ?? 0) as int,
       checksumUrl: checksumUrl,
+      installerName: installer?['name'] as String?,
+      installerUrl: installer?['browser_download_url'] as String?,
     );
   }
 
   Future<File> downloadAsset(
     UpdateInfo info, {
     void Function(int received, int total)? onProgress,
+  }) => _download(
+    url: info.assetUrl,
+    fileName: info.assetName,
+    expectedSize: info.assetSize,
+    onProgress: onProgress,
+  );
+
+  /// Downloads the Windows installer of [info]. Only meaningful for an
+  /// [InstallKind.installed] copy, which must not swap its own files.
+  Future<File> downloadInstaller(
+    UpdateInfo info, {
+    void Function(int received, int total)? onProgress,
+  }) {
+    final url = info.installerUrl;
+    final name = info.installerName;
+    if (url == null || name == null) {
+      throw StateError('release has no installer asset');
+    }
+
+    return _download(
+      url: url,
+      fileName: name,
+      expectedSize: 0,
+      onProgress: onProgress,
+    );
+  }
+
+  Future<File> _download({
+    required String url,
+    required String fileName,
+    required int expectedSize,
+    void Function(int received, int total)? onProgress,
   }) async {
     final dir = await Directory.systemTemp.createTemp('modlinq-update');
-    final out = File(path.join(dir.path, info.assetName));
+    final out = File(path.join(dir.path, fileName));
 
-    final req = http.Request('GET', Uri.parse(info.assetUrl));
+    final req = http.Request('GET', Uri.parse(url));
     req.headers['User-Agent'] = 'modlinq-updater';
     final res = await _client.send(req);
     if (res.statusCode != 200) {
       throw HttpException('download failed: ${res.statusCode}');
     }
 
-    final total = res.contentLength ?? info.assetSize;
+    final total = res.contentLength ?? expectedSize;
     var received = 0;
     final sink = out.openWrite();
     await for (final chunk in res.stream) {
@@ -227,9 +287,13 @@ class UpdateService {
     return digest.toString().toLowerCase() == expectedSha256.toLowerCase();
   }
 
-  Future<String?> fetchExpectedChecksum(UpdateInfo info) async {
+  /// [fileName] defaults to the portable asset; pass [UpdateInfo.installerName]
+  /// to verify the installer instead.
+  Future<String?> fetchExpectedChecksum(UpdateInfo info, {String? fileName}) async {
+    final wanted = fileName ?? info.assetName;
+
     // release body carries the sums as text, asset file is the fallback
-    final fromNotes = parseChecksums(info.notes)[info.assetName];
+    final fromNotes = parseChecksums(info.notes)[wanted];
     if (fromNotes != null) return fromNotes;
     if (info.checksumUrl == null) return null;
     final res = await _client.get(
@@ -237,7 +301,17 @@ class UpdateService {
       headers: const {'User-Agent': 'modlinq-updater'},
     );
     if (res.statusCode != 200) return null;
-    return parseChecksums(res.body)[info.assetName];
+    return parseChecksums(res.body)[wanted];
+  }
+
+  /// Hands control to the downloaded installer. It closes this app, replaces
+  /// the files in place and starts it again, so the caller only has to exit.
+  Future<void> runInstaller(File setup) async {
+    await Process.start(
+      setup.path,
+      installerArgs(),
+      mode: ProcessStartMode.detached,
+    );
   }
 
   /// unpacks the zip into a staging dir next to the install and returns it

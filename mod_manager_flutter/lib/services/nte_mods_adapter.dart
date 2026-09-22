@@ -4,7 +4,50 @@ import '../models/nte_mod.dart';
 import '../utils/mod_categories.dart';
 import '../utils/game_roster.dart';
 import '../utils/nte_characters.dart';
-import 'nte_mod_manager.dart';
+import 'nte_mod_library.dart';
+
+/// What the mods screen needs from a game whose mods are copied files rather
+/// than 3DMigoto symlinks.
+///
+/// NTE and Deadlock differ in how files reach the game, not in how the user
+/// works with them, so the grid talks to this and never to a specific game.
+abstract class FileModManager {
+  GameType get gameType;
+
+  /// The app-managed folder the mods were imported into.
+  NteModLibrary get library;
+
+  List<NteMod> listMods();
+
+  /// Installs whatever should be enabled but is not, without ever
+  /// uninstalling. Run on load so a mod the game had locked is retried.
+  Future<NteApplyResult> syncWithIntent();
+
+  /// Copies folders and archives into the library. [skipped] collects sources
+  /// that held nothing installable, with the reason.
+  Future<List<NteMod>> import(
+    List<String> paths, {
+    required Map<String, String> skipped,
+  });
+
+  String? previewImageFor(String modName);
+
+  bool isFavorite(String modName);
+
+  Future<NteApplyResult> setEnabled(String modName, bool enabled);
+
+  Future<NteApplyResult> setCategory(String modName, String? category);
+
+  Future<void> delete(String modName);
+
+  Future<NteMod> rename(String oldName, String newName);
+
+  Future<void> toggleFavorite(String modName);
+
+  String setPreviewImage(String modName, List<int> bytes, {String extension});
+
+  bool clearPreviewImage(String modName);
+}
 
 /// Presents the NTE library through the same shapes the mods screen already
 /// uses for ZZZ and Wuthering Waves.
@@ -13,9 +56,11 @@ import 'nte_mod_manager.dart';
 /// category, so categories take the place of characters and the existing grid,
 /// cards and context menu work unchanged.
 class NteModsAdapter {
-  final NteModManager manager;
+  final FileModManager manager;
 
   NteModsAdapter(this.manager);
+
+  GameType get gameType => manager.gameType;
 
   /// The library as [ModInfo], ready for the mod grid.
   List<ModInfo> listMods() {
@@ -54,7 +99,7 @@ class NteModsAdapter {
     final ids = grouped.keys.toList()
       ..sort((a, b) => _labelFor(a).toLowerCase().compareTo(_labelFor(b).toLowerCase()));
 
-    final roster = GameRoster.of(GameType.nte);
+    final roster = GameRoster.of(gameType);
 
     return [
       for (final id in ids)

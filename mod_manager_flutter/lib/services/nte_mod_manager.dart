@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../models/game_type.dart';
 import '../models/nte_mod.dart';
 import '../utils/nte_characters.dart';
 import '../utils/path_helper.dart';
 import 'config_service.dart';
 import 'nte_loader_service.dart';
 import 'nte_mod_installer.dart';
+import 'nte_mods_adapter.dart';
 import 'nte_mod_library.dart';
 
 /// Coordinates the NTE mod library, the game folder and stored settings.
@@ -15,7 +17,7 @@ import 'nte_mod_library.dart';
 /// The game folder is treated as derived state: enabled mods are whatever is
 /// currently installed there. Settings only record intent, so a mod the game
 /// had locked is retried on the next apply.
-class NteModManager {
+class NteModManager implements FileModManager {
   final NteModLibrary library;
   final NteModInstaller installer;
   final ConfigService config;
@@ -54,7 +56,11 @@ class NteModManager {
     return p.join(PathHelper.getAppDataPath(), 'nte_mods');
   }
 
+  @override
+  GameType get gameType => GameType.nte;
+
   /// All library mods, with their category and live installed state.
+  @override
   List<NteMod> listMods() {
     final categories = config.nteModCategories;
 
@@ -101,6 +107,7 @@ class NteModManager {
   /// This never uninstalls. Mods already present in the game folder are adopted
   /// into the stored intent, so mods enabled before this app managed them — or
   /// by any other tool — are kept rather than removed.
+  @override
   Future<NteApplyResult> syncWithIntent() async {
     final mods = listMods();
     final installed = mods.where((mod) => mod.enabled).map((mod) => mod.name).toSet();
@@ -250,6 +257,7 @@ class NteModManager {
   ///
   /// Returns the imported mods; [skipped] collects sources that held no
   /// installable files or already existed, with the reason.
+  @override
   Future<List<NteMod>> import(
     List<String> paths, {
     required Map<String, String> skipped,

@@ -24,6 +24,7 @@ class ConfigService {
   static const String _keyDeadlockLibraryPath = 'library_path_deadlock';
   static const String _keyDeadlockCategories = 'mod_categories_deadlock';
   static const String _keyDeadlockSlots = 'slots_deadlock';
+  static const String _keyDeadlockFavorites = 'favorite_mods_deadlock';
   static const String _keyNteAnticensor = 'anticensor_nte';
   static const String _keyNteHideUid = 'hide_uid_nte';
   static const String _keyActiveMods = 'active_mods';
@@ -279,6 +280,17 @@ class ConfigService {
   Future<bool> setDeadlockSlots(Map<String, int> slots) async {
     try {
       return await _prefs.setString(_keyDeadlockSlots, jsonEncode(slots));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  List<String> get deadlockFavoriteMods =>
+      _prefs.getStringList(_keyDeadlockFavorites) ?? [];
+
+  Future<bool> setDeadlockFavoriteMods(List<String> modNames) async {
+    try {
+      return await _prefs.setStringList(_keyDeadlockFavorites, modNames);
     } catch (e) {
       return false;
     }

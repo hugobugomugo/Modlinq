@@ -26,6 +26,7 @@ import 'components/nte_setup_panel.dart';
 import '../utils/mod_categories.dart';
 import '../utils/game_roster.dart';
 import '../services/config_service.dart';
+import '../games/deadlock/deadlock_manager.dart';
 import '../services/nte_mod_manager.dart';
 import '../services/nte_mods_adapter.dart';
 import 'components/character_cards_list_widget.dart';
@@ -135,7 +136,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   Future<void> _saveTag(String modId, String characterId) async {
     // For NTE the strip holds categories, so dropping a mod regroups it.
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
@@ -183,13 +184,21 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     ];
   }
 
-  /// Adapter for the currently configured NTE install, or null when the game
-  /// folder has not been located yet.
+  /// Adapter for the selected copy-based game, or null when its folder has
+  /// not been located yet.
+  ///
+  /// NTE and Deadlock share this screen: both copy files into the game and
+  /// group mods by category, only the installer underneath differs.
   NteModsAdapter? get _nteAdapter {
     final config = _cachedConfigService;
     if (config == null) return null;
 
-    final manager = NteModManager.fromConfig(config);
+    final FileModManager? manager = switch (ref.read(selectedGameProvider)) {
+      GameType.nte => NteModManager.fromConfig(config),
+      GameType.deadlock => DeadlockModManager.fromConfig(config),
+      _ => null,
+    };
+
     return manager == null ? null : NteModsAdapter(manager);
   }
 
@@ -280,7 +289,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     CancellationToken? cancelled,
   }) async {
     // NTE stores mods as pak/asi files, so it loads through its own backend.
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       await _loadNteMods(showLoading: showLoading);
       return;
     }
@@ -450,7 +459,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     // Prevent multiple simultaneous operations
     if (_isOperationInProgress) return;
 
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
@@ -592,7 +601,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Future<void> _toggleFavorite(ModInfo mod) async {
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
@@ -937,7 +946,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   Future<void> _removeModImage(ModInfo mod) async {
     try {
-      if (ref.read(selectedGameProvider) == GameType.nte) {
+      if (ref.read(selectedGameProvider).usesPakMods) {
         _nteAdapter?.clearImage(mod);
         imageCache.clear();
         imageCache.clearLiveImages();
@@ -963,7 +972,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
   }
 
   Future<void> _pasteImageFromClipboard(ModInfo mod) async {
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       await _setNteImageFromClipboard(mod);
       return;
     }
@@ -1271,7 +1280,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
     if (newName == null || newName.isEmpty || newName == mod.name) return;
 
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
@@ -1323,7 +1332,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
     if (confirmed != true) return;
 
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
@@ -1905,7 +1914,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     });
 
     // NTE needs its game folder before the grid has anything to show.
-    if (ref.watch(selectedGameProvider) == GameType.nte && _nteAdapter == null) {
+    if (ref.watch(selectedGameProvider).usesPakMods && _nteAdapter == null) {
       return NteSetupPanel(onInstallReady: () => loadMods(showLoading: false));
     }
 
@@ -2625,7 +2634,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     }
 
     // NTE mods are copied into its own library rather than symlinked.
-    if (ref.read(selectedGameProvider) == GameType.nte) {
+    if (ref.read(selectedGameProvider).usesPakMods) {
       setState(() => _isDragging = false);
       await _importNteMods(importable.map((f) => f.path).toList());
       return;

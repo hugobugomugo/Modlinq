@@ -8,7 +8,7 @@ import '../games/game_registry.dart';
 ///
 /// Labels and capabilities live in the game modules; this extension only
 /// forwards, so nothing has to be kept in sync by hand.
-enum GameType { zzz, wutheringWaves, nte }
+enum GameType { zzz, wutheringWaves, nte, deadlock }
 
 extension GameTypeX on GameType {
   /// Stable identifier used in config storage and on-disk paths.
@@ -18,6 +18,7 @@ extension GameTypeX on GameType {
     GameType.zzz => 'zzz',
     GameType.wutheringWaves => 'ww',
     GameType.nte => 'nte',
+    GameType.deadlock => 'deadlock',
   };
 
   /// Short label for the game switcher.
@@ -37,6 +38,7 @@ extension GameTypeX on GameType {
   static GameType fromKey(String? key) => switch (key) {
     'ww' => GameType.wutheringWaves,
     'nte' => GameType.nte,
+    'deadlock' => GameType.deadlock,
     _ => GameType.zzz,
   };
 }

@@ -26,6 +26,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
   final _wwModsPathController = TextEditingController();
   final _wwSaveModsPathController = TextEditingController();
   final _nteGamePathController = TextEditingController();
+  final _deadlockGamePathController = TextEditingController();
   final _nteLibraryPathController = TextEditingController();
   late TabController _gameTabController;
 
@@ -72,6 +73,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
     _wwModsPathController.dispose();
     _wwSaveModsPathController.dispose();
     _nteGamePathController.dispose();
+    _deadlockGamePathController.dispose();
     _nteLibraryPathController.dispose();
     super.dispose();
   }
@@ -198,6 +200,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with TickerProvid
     GameType.wutheringWaves => _wwModsPathController.text.isNotEmpty &&
         _wwSaveModsPathController.text.isNotEmpty,
     GameType.nte => _nteGamePathController.text.isNotEmpty,
+    GameType.deadlock => _deadlockGamePathController.text.isNotEmpty,
   };
 
   @override

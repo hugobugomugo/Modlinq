@@ -35,6 +35,13 @@ class GameRoster {
       assetFolder: 'assets/characters_nte',
       displayNameOf: getNteCharacterDisplayName,
     ),
+    // Deadlock mods are not tied to a hero roster; they are grouped by the
+    // user's own categories, like NTE's, but without a character list.
+    GameType.deadlock => GameRoster(
+      characterIds: const [],
+      assetFolder: 'assets/characters_deadlock',
+      displayNameOf: (id) => id,
+    ),
   };
 
   String iconPathFor(String characterId) => '$assetFolder/$characterId.png';

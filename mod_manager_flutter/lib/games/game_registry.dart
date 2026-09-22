@@ -1,4 +1,5 @@
 import '../models/game_type.dart';
+import 'deadlock/deadlock_module.dart';
 import 'game_module.dart';
 import 'nte_module.dart';
 import 'wuwa_module.dart';
@@ -15,6 +16,7 @@ class GameRegistry {
     ZzzModule(),
     WuwaModule(),
     NteModule(),
+    DeadlockModule(),
   ];
 
   static GameModule of(GameType type) =>

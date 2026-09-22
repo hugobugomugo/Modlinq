@@ -21,7 +21,8 @@ void main() {
 
     test('looks a module up by its key', () {
       expect(GameRegistry.byKey('nte')?.type, GameType.nte);
-      expect(GameRegistry.byKey('deadlock'), isNull);
+      expect(GameRegistry.byKey('deadlock')?.type, GameType.deadlock);
+      expect(GameRegistry.byKey('minecraft'), isNull);
     });
 
     test('every game has a label and a marketplace hub', () {
@@ -47,10 +48,19 @@ void main() {
       expect(GameRegistry.of(GameType.zzz).caps.needsLoader, isFalse);
     });
 
+    test('deadlock copies archives and needs its gameinfo patched', () {
+      final caps = GameRegistry.of(GameType.deadlock).caps;
+
+      expect(caps.usesPakMods, isTrue);
+      expect(caps.needsLoader, isTrue);
+      expect(caps.hasCharacters, isFalse);
+    });
+
     test('f10 reload is zzz only', () {
       expect(GameRegistry.of(GameType.zzz).caps.hasF10Reload, isTrue);
       expect(GameRegistry.of(GameType.wutheringWaves).caps.hasF10Reload, isFalse);
       expect(GameRegistry.of(GameType.nte).caps.hasF10Reload, isFalse);
+      expect(GameRegistry.of(GameType.deadlock).caps.hasF10Reload, isFalse);
     });
 
     test('the game type getters read through to the module', () {
@@ -66,6 +76,7 @@ void main() {
       expect(GameRegistry.of(GameType.zzz).marketplaceGameId, 19567);
       expect(GameRegistry.of(GameType.wutheringWaves).marketplaceGameId, 20357);
       expect(GameRegistry.of(GameType.nte).marketplaceGameId, 23012);
+      expect(GameRegistry.of(GameType.deadlock).marketplaceGameId, 20948);
     });
 
     test('hub and search urls carry the game id', () {

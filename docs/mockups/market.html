@@ -1,0 +1,57 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.mcard{background:#111114;border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
+.mthumb{height:120px;background:linear-gradient(135deg,#312e81,#1e1b4b);display:flex;align-items:center;justify-content:center;font-size:30px;position:relative}
+.scan{position:absolute;top:8px;left:8px;font-size:9px;font-weight:700;padding:3px 7px;border-radius:5px;background:rgba(6,95,70,.85);color:#6ee7b7}
+.scan.warn{background:rgba(127,29,29,.85);color:#fca5a5}
+.mbody{padding:11px 12px}
+.mtitle{font-size:12px;font-weight:700;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mmeta{font-size:10px;color:#6b7280;margin-top:4px;display:flex;justify-content:space-between}
+.ibtn{margin-top:9px;height:28px;border-radius:8px;background:linear-gradient(135deg,#0EA5E9,#06B6D4);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.ibtn.done{background:rgba(255,255,255,.05);color:#6b7280;border:1px solid rgba(255,255,255,.08)}
+.srcbar{display:flex;gap:8px;align-items:center;font-size:10px;color:#6b7280;margin-bottom:14px}
+.srctag{padding:4px 9px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);font-family:ui-monospace,monospace;color:#9ca3af}
+</style></head><body>
+<div class="app">
+  <div class="rail">
+    <div class="rail-label">Favoriten</div>
+    <div class="tile fav active"><div class="ico">🎮</div><span>DL</span></div>
+    <div class="tile fav"><div class="ico">⚡</div><span>ZZZ</span></div>
+    <div class="rail-div"></div>
+    <div class="rail-label">Gacha</div>
+    <div class="tile"><div class="ico">🌊</div><span>WW</span></div>
+    <div class="tile"><div class="ico">🌀</div><span>NTE</span></div>
+    <div class="rail-div"></div>
+    <div class="rail-label">Source 2</div>
+    <div class="tile"><div class="ico">🔫</div><span>CS2</span></div>
+    <div class="rail-div"></div>
+    <div class="tile add">+</div>
+  </div>
+  <div class="nav">
+    <div class="brand">MODLINQ</div>
+    <div class="brand-sub">MOD MANAGER</div>
+    <div class="game-head"><div class="gn">Deadlock</div><div class="gp">GameBanana · 20948</div></div>
+    <div class="navitem"><span class="i">▣</span> Mods</div>
+    <div class="navitem active"><span class="i">▤</span> Marketplace</div>
+    <div class="navitem"><span class="i">⚙</span> Settings</div>
+    <div class="badge-ver">v2.1.0</div>
+  </div>
+  <div class="content">
+    <div class="chead">
+      <div><div class="ctitle">Marketplace</div><div class="csub">8.832 Mods · nativ, kein Webview</div></div>
+      <div class="search">🔍 GameBanana durchsuchen…</div>
+    </div>
+    <div class="srcbar"><span class="srctag">GET /apiv11/Game/20948/Subfeed</span><span>md5 verifiziert · Virenscan-Flag sichtbar</span></div>
+    <div class="chips"><div class="chip on">Neu</div><div class="chip">Beliebt</div><div class="chip">Skins</div><div class="chip">HUD</div><div class="chip">Sounds</div></div>
+    <div class="grid">
+      <div class="mcard"><div class="mthumb">🦾<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Splatoon Smallfry Soul</div><div class="mmeta"><span>@Kirbyfan</span><span>2,4 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+      <div class="mcard"><div class="mthumb">🌸<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Sakura Haze Full Kit</div><div class="mmeta"><span>@moddr</span><span>41 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+      <div class="mcard"><div class="mthumb">🎯<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Minimal HUD v3</div><div class="mmeta"><span>@uiguy</span><span>2 MB</span></div><div class="ibtn done">✓ Installiert</div></div></div>
+      <div class="mcard"><div class="mthumb">⚠️<div class="scan warn">⚠ ungeprüft</div></div><div class="mbody"><div class="mtitle">Random Pack 2026</div><div class="mmeta"><span>@anon</span><span>88 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+      <div class="mcard"><div class="mthumb">🔊<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Classic Hit Sounds</div><div class="mmeta"><span>@audiodev</span><span>4 MB</span></div><div class="ibtn done">✓ Installiert</div></div></div>
+      <div class="mcard"><div class="mthumb">🌙<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Night Streets Retex</div><div class="mmeta"><span>@mapper</span><span>210 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+      <div class="mcard"><div class="mthumb">🧊<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Ice Trail VFX</div><div class="mmeta"><span>@vfxlab</span><span>7 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+      <div class="mcard"><div class="mthumb">🗡<div class="scan">✓ scan ok</div></div><div class="mbody"><div class="mtitle">Neon Blades</div><div class="mmeta"><span>@bladez</span><span>24 MB</span></div><div class="ibtn">⤓ Installieren</div></div></div>
+    </div>
+  </div>
+</div></body></html>

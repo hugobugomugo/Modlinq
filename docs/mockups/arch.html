@@ -1,0 +1,125 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body{padding:0}
+.wrap{display:flex;height:900px}
+.left{width:600px;padding:28px 26px;border-right:1px solid rgba(255,255,255,.07);background:#0d0d10}
+.right{flex:1;padding:28px 26px;position:relative}
+h2{font-size:15px;font-weight:800;color:#f9fafb;margin-bottom:4px}
+.sub{font-size:11px;color:#6b7280;margin-bottom:18px}
+.file{background:#111114;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.fhead{background:rgba(255,255,255,.03);padding:8px 12px;font-size:11px;font-family:ui-monospace,monospace;color:#9ca3af;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between}
+.fnew{color:#6ee7b7;font-weight:700;font-size:10px}
+pre{padding:12px;font-family:ui-monospace,'JetBrains Mono',monospace;font-size:11px;line-height:1.65;color:#d1d5db;white-space:pre}
+.k{color:#c084fc}.s{color:#86efac}.c{color:#4b5563;font-style:italic}.n{color:#fbbf24}.t{color:#38bdf8}
+.mark{background:rgba(14,165,233,.14);border-left:2px solid #0EA5E9;display:inline-block;width:100%;}
+.num{display:inline-flex;width:15px;height:15px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:9px;font-weight:800;align-items:center;justify-content:center;margin-right:6px;vertical-align:middle;font-family:sans-serif}
+/* mini app */
+.mini{border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;display:flex;height:340px;background:#0a0a0b}
+.mrail{width:56px;background:#0d0d10;border-right:1px solid rgba(255,255,255,.07);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px}
+.mtile{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#6b7280}
+.mtile.hi{background:linear-gradient(135deg,#0EA5E9,#06B6D4);color:#fff;box-shadow:0 0 0 2px rgba(14,165,233,.4),0 0 16px rgba(14,165,233,.5)}
+.mnav{width:130px;background:#0d0d10;border-right:1px solid rgba(255,255,255,.07);padding:12px 10px}
+.mni{font-size:10px;color:#6b7280;padding:7px 9px;border-radius:7px;margin-bottom:4px;font-weight:600}
+.mni.hi{background:rgba(14,165,233,.15);color:#38bdf8;box-shadow:0 0 0 1px rgba(14,165,233,.35)}
+.mbody{flex:1;padding:12px}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mc{height:60px;border-radius:8px;background:#111114;border:1px solid rgba(255,255,255,.07)}
+.mc.hi{border-color:rgba(14,165,233,.5);box-shadow:0 0 12px rgba(14,165,233,.25)}
+.zone{position:relative}
+.tag{position:absolute;font-size:10px;font-weight:700;color:#38bdf8;background:rgba(14,165,233,.12);border:1px solid rgba(14,165,233,.35);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.legend{margin-top:20px}
+.lrow{display:flex;gap:10px;align-items:flex-start;margin-bottom:11px;font-size:11px;color:#9ca3af;line-height:1.5}
+.lnum{flex:0 0 auto;width:17px;height:17px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.lrow b{color:#e5e7eb;font-weight:700}
+.foot{margin-top:18px;padding:12px 14px;border-radius:10px;background:rgba(6,95,70,.12);border:1px solid rgba(16,185,129,.25);font-size:11px;color:#6ee7b7;line-height:1.6}
+.shared{margin-top:14px;padding:11px 13px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:10.5px;color:#9ca3af;line-height:1.7}
+.shared b{color:#e5e7eb}
+</style></head><body>
+<div class="wrap">
+  <div class="left">
+    <h2>Ein Spiel = eine Datei</h2>
+    <div class="sub">Was du tatsächlich schreibst, um Deadlock hinzuzufügen</div>
+    <div class="file">
+      <div class="fhead"><span>lib/games/deadlock/deadlock_module.dart</span><span class="fnew">+ NEU</span></div>
+<pre><span class="k">class</span> <span class="t">DeadlockModule</span> <span class="k">implements</span> <span class="t">GameModule</span> {
+<span class="mark">  <span class="k">String</span> <span class="k">get</span> shortLabel => <span class="s">'DL'</span>;
+  <span class="k">String</span> <span class="k">get</span> displayName => <span class="s">'Deadlock'</span>;
+  <span class="k">String</span> <span class="k">get</span> icon => <span class="s">'assets/games/dl.png'</span>;</span>
+
+<span class="mark">  <span class="k">int</span> <span class="k">get</span> marketplaceGameId => <span class="n">20948</span>;</span>
+
+<span class="mark">  <span class="t">GameCaps</span> <span class="k">get</span> caps => <span class="k">const</span> <span class="t">GameCaps</span>(
+    hasCharacters: <span class="k">false</span>,
+    usesArchives: <span class="k">true</span>,
+    hasF10Reload: <span class="k">false</span>,
+    needsLoader:  <span class="k">true</span>,
+  );</span>
+
+<span class="mark">  <span class="t">Future</span>&lt;<span class="t">GameInstall</span>?&gt; detect() =>
+    <span class="t">SteamLibraries</span>.findGameDir(<span class="s">'Deadlock'</span>);</span>
+
+<span class="mark">  <span class="t">ModInstaller</span> installerFor(<span class="t">GameInstall</span> i) =>
+    <span class="t">DeadlockInstaller</span>(i); <span class="c">// vpk → addons/</span></span>
+}</pre>
+    </div>
+    <div class="file">
+      <div class="fhead"><span>lib/games/game_registry.dart</span><span style="color:#fbbf24;font-size:10px;font-weight:700">1 ZEILE</span></div>
+<pre><span class="k">final</span> gameRegistry = [
+  <span class="t">ZzzModule</span>(), <span class="t">WuwaModule</span>(), <span class="t">NteModule</span>(),
+<span class="mark">  <span class="t">DeadlockModule</span>(),  <span class="c">// ← das war's</span></span>
+];</pre>
+    </div>
+    <div class="shared">
+      <b>Nicht angefasst:</b> mods_screen.dart · marketplace_screen.dart · settings_screen.dart · main.dart · Grid · Cards · Archiv-Import · Update-Dialog
+    </div>
+    <div class="foot">Heute für NTE nötig gewesen: 6 Dateien + 14 <span style="font-family:ui-monospace,monospace">if (game == GameType.nte)</span>-Stellen in 4 bestehenden Screens.</div>
+  </div>
+  <div class="right">
+    <h2>Wo diese Datei in der UI landet</h2>
+    <div class="sub">Die Shared-Screens lesen die Registry — niemand kennt „Deadlock" beim Namen</div>
+    <div class="mini zone">
+      <div class="mrail">
+        <div class="mtile hi" style="position:relative">DL<span style="position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:#fff;color:#0EA5E9;font-size:10px;display:flex;align-items:center;justify-content:center">1</span></div>
+        <div class="mtile">ZZZ</div>
+        <div class="mtile">WW</div>
+        <div class="mtile">NTE</div>
+        <div class="mtile" style="border:1px dashed rgba(255,255,255,.15);background:none">+</div>
+      </div>
+      <div class="mnav">
+        <div style="font-size:11px;font-weight:800;color:#38bdf8;margin-bottom:10px">Deadlock <span style="display:inline-flex;width:15px;height:15px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:9px;align-items:center;justify-content:center;vertical-align:middle">2</span></div>
+        <div class="mni">▣ Mods</div>
+        <div class="mni hi">▤ Marketplace</div>
+        <div class="mni">⚙ Settings</div>
+      </div>
+      <div class="mbody">
+        <div style="font-size:10px;color:#6b7280;margin-bottom:9px">GameBanana 20948 · 8.832 Mods <span style="display:inline-flex;width:15px;height:15px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:9px;align-items:center;justify-content:center;vertical-align:middle;margin-left:4px">3</span></div>
+        <div class="mgrid">
+          <div class="mc hi"></div><div class="mc hi"></div><div class="mc hi" style="display:flex;align-items:center;justify-content:center;font-size:9px;color:#38bdf8">installerFor() <span style="display:inline-flex;width:15px;height:15px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:9px;align-items:center;justify-content:center;margin-left:5px">5</span></div>
+          <div class="mc"></div><div class="mc"></div><div class="mc"></div>
+          <div class="mc"></div><div class="mc"></div><div class="mc"></div>
+        </div>
+        <div style="margin-top:12px;font-size:10px;color:#6b7280;border-top:1px solid rgba(255,255,255,.07);padding-top:10px">
+          <span style="display:inline-flex;width:15px;height:15px;border-radius:50%;background:#0EA5E9;color:#fff;font-size:9px;align-items:center;justify-content:center;vertical-align:middle;margin-right:5px">4</span>⚙ Settings › <span style="color:#38bdf8">Loader &amp; Patches</span> — nur sichtbar weil <span style="font-family:ui-monospace,monospace;color:#c084fc">caps.needsLoader</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="lrow"><div class="lnum">1</div><div><b>Rail-Kachel</b> — Label + Icon kommen aus dem Modul. Reihenfolge, Favorit und Kategorie setzt der User, landen in der Config.</div></div>
+      <div class="lrow"><div class="lnum">2</div><div><b>Nav-Kopf</b> — zeigt <span style="font-family:ui-monospace,monospace">displayName</span> und den von <span style="font-family:ui-monospace,monospace">detect()</span> gefundenen Pfad.</div></div>
+      <div class="lrow"><div class="lnum">3</div><div><b>Marketplace</b> — derselbe Screen für alle Spiele, nur <span style="font-family:ui-monospace,monospace">marketplaceGameId</span> wechselt. Fixt nebenbei, dass WW/NTE heute ZZZ-Mods zeigen.</div></div>
+      <div class="lrow"><div class="lnum">4</div><div><b>Settings-Abschnitte</b> — erscheinen per <span style="font-family:ui-monospace,monospace">caps</span>. Kein Character-Grid ohne <span style="font-family:ui-monospace,monospace">hasCharacters</span>, kein F10-Block ohne <span style="font-family:ui-monospace,monospace">hasF10Reload</span>.</div></div>
+      <div class="lrow"><div class="lnum">5</div><div><b>Install-Weg</b> — Grid ruft <span style="font-family:ui-monospace,monospace">installerFor(game)</span>. ZZZ/WW legen Symlinks, NTE kopiert pak/asi, Deadlock schreibt <span style="font-family:ui-monospace,monospace">pakXX_dir.vpk</span> und patcht <span style="font-family:ui-monospace,monospace">gameinfo.gi</span>.</div></div>
+    </div>
+    <div style="margin-top:22px;padding:15px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12px;font-weight:800;color:#e5e7eb;margin-bottom:11px">Was geteilt wird, was pro Spiel ist</div>
+      <div style="display:flex;gap:8px;align-items:stretch;font-size:10px">
+        <div style="flex:1;padding:10px 8px;border-radius:9px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.3);color:#7dd3fc;text-align:center;line-height:1.5">Grid · Cards<br>Suche · Filter<br><b style="color:#38bdf8">shared</b></div>
+        <div style="flex:1;padding:10px 8px;border-radius:9px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.3);color:#7dd3fc;text-align:center;line-height:1.5">Marketplace-UI<br>Download · md5<br><b style="color:#38bdf8">shared</b></div>
+        <div style="flex:1;padding:10px 8px;border-radius:9px;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.3);color:#7dd3fc;text-align:center;line-height:1.5">Archiv-Import<br>zip/rar/7z<br><b style="color:#38bdf8">shared</b></div>
+        <div style="flex:1;padding:10px 8px;border-radius:9px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;text-align:center;line-height:1.5">Installer<br>symlink/pak/vpk<br><b style="color:#34d399">pro Spiel</b></div>
+        <div style="flex:1;padding:10px 8px;border-radius:9px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;text-align:center;line-height:1.5">detect()<br>Pfadsuche<br><b style="color:#34d399">pro Spiel</b></div>
+      </div>
+      <div style="margin-top:11px;font-size:10.5px;color:#6b7280;line-height:1.6">Blau wird einmal gebaut und von allen Spielen benutzt. Grün ist der Teil, den ein neues Spiel mitbringt — bei Deadlock rund 120 Zeilen.</div>
+    </div>
+  </div>
+</div></body></html>

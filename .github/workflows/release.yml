@@ -135,10 +135,27 @@ jobs:
         env:
           CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
 
+      # the portable zip is what the in-app updater swaps; the installer is for
+      # people who want Modlinq in Program Files with a desktop entry
+      - name: build installer
+        shell: pwsh
+        env:
+          MODLINQ_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc windows_installer\setup.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem windows_installer\output
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: windows_installer/output/modlinq-*-windows-x64.zip
+          path: |
+            windows_installer/output/modlinq-*-windows-x64.zip
+            windows_installer/output/modlinq-setup-*.exe
 
   publish:
     needs: [version, linux, windows]
@@ -155,7 +172,7 @@ jobs:
       - name: checksums
         run: |
           cd dist
-          sha256sum *.zip > SHA256SUMS.txt
+          sha256sum *.zip *.exe > SHA256SUMS.txt
           cat SHA256SUMS.txt
           {
             echo 'RELEASE_BODY<<GHEOF'
@@ -176,4 +193,5 @@ jobs:
           generate_release_notes: true
           files: |
             dist/*.zip
+            dist/*.exe
             dist/SHA256SUMS.txt

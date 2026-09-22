@@ -1,5 +1,8 @@
 @echo off
-REM run from the repo root
+REM run from the repo root: build_installer.bat [version]
+
+set VERSION=%1
+if "%VERSION%"=="" set VERSION=0.0.0
 
 cd mod_manager_flutter
 
@@ -23,6 +26,7 @@ if not exist "%INNO_SETUP_PATH%" (
 cd ..
 
 echo [3/3] building installer
+set MODLINQ_VERSION=%VERSION%
 "%INNO_SETUP_PATH%" "windows_installer\setup.iss"
 if %ERRORLEVEL% NEQ 0 (
     echo error: installer build failed

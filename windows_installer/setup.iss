@@ -1,7 +1,12 @@
 ; inno setup 6.0+ required: https://jrsoftware.org/isdl.php
 
 #define MyAppName "Modlinq"
-#define MyAppVersion "2.0.0"
+; the build passes the version in MODLINQ_VERSION; a dev build carries a
+; suffix like 2.0.2-dev.9, which is why this is a string and not a number
+#define MyAppVersion GetEnv('MODLINQ_VERSION')
+#if MyAppVersion == ""
+  #define MyAppVersion "0.0.0"
+#endif
 #define MyAppPublisher "hugobugomugo"
 #define MyAppURL "https://github.com/hugobugomugo/Modlinq"
 #define MyAppExeName "modlinq.exe"
@@ -15,9 +20,15 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases
+; {autopf} is Program Files for this 64-bit build; the wizard still lets the
+; user point it somewhere else, which is what portable-minded users expect
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
+DisableProgramGroupPage=yes
+UninstallDisplayIcon={app}\{#MyAppExeName}
+CloseApplications=yes
+RestartApplications=no
 LicenseFile=..\LICENSE
 OutputDir=output
 OutputBaseFilename=modlinq-setup-{#MyAppVersion}
@@ -34,7 +45,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; on by default: most users expect a desktop entry after installing an app
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "..\mod_manager_flutter\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

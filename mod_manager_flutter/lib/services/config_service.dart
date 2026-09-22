@@ -16,6 +16,10 @@ class ConfigService {
   static const String _keyNteModCategories = 'mod_categories_nte';
   static const String _keyNteEnabledMods = 'enabled_mods_nte';
   static const String _keyNteFavoriteMods = 'favorite_mods_nte';
+  static const String _keyGameOrder = 'game_order';
+  static const String _keyGameFavorites = 'game_favorites';
+  static const String _keyGameCategories = 'game_categories';
+  static const String _keyGameHidden = 'game_hidden';
   static const String _keyDeadlockGamePath = 'game_path_deadlock';
   static const String _keyDeadlockLibraryPath = 'library_path_deadlock';
   static const String _keyDeadlockCategories = 'mod_categories_deadlock';
@@ -129,6 +133,88 @@ class ConfigService {
     } catch (e) {
       return false;
     }
+  }
+
+  /// Order of the game rail, by game key. Games missing from the list keep
+  /// their default position behind the ones listed here.
+  List<String> get gameOrder => _prefs.getStringList(_keyGameOrder) ?? [];
+
+  Future<bool> setGameOrder(List<String> keys) async {
+    try {
+      return await _prefs.setStringList(_keyGameOrder, keys);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Games pinned to the top of the rail.
+  List<String> get gameFavorites => _prefs.getStringList(_keyGameFavorites) ?? [];
+
+  Future<bool> setGameFavorites(List<String> keys) async {
+    try {
+      return await _prefs.setStringList(_keyGameFavorites, keys);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Games the user removed from the rail. They stay configured, they are
+  /// just not shown — nothing about their mods is touched.
+  List<String> get hiddenGames => _prefs.getStringList(_keyGameHidden) ?? [];
+
+  Future<bool> setHiddenGames(List<String> keys) async {
+    try {
+      return await _prefs.setStringList(_keyGameHidden, keys);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Rail category per game key, e.g. `{zzz: Gacha, deadlock: Source 2}`.
+  Map<String, String> get gameCategories {
+    final json = _prefs.getString(_keyGameCategories);
+    if (json == null || json.isEmpty) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(json) as Map);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<bool> setGameCategory(String gameKey, String? category) async {
+    try {
+      final categories = gameCategories;
+      if (category == null || category.isEmpty) {
+        categories.remove(gameKey);
+      } else {
+        categories[gameKey] = category;
+      }
+      return await _prefs.setString(_keyGameCategories, jsonEncode(categories));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Mods the user does not want to see, per game.
+  ///
+  /// Hiding is display-only: an installed mod stays installed, so the list can
+  /// be emptied at any time without the game folder changing.
+  List<String> hiddenMods(String gameKey) =>
+      _prefs.getStringList('hidden_mods_$gameKey') ?? [];
+
+  Future<bool> setHiddenMods(String gameKey, List<String> modNames) async {
+    try {
+      return await _prefs.setStringList('hidden_mods_$gameKey', modNames);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> setModHidden(String gameKey, String modName, bool hidden) async {
+    final mods = hiddenMods(gameKey).toSet();
+    hidden ? mods.add(modName) : mods.remove(modName);
+
+    return setHiddenMods(gameKey, mods.toList());
   }
 
   String? get deadlockGamePath => _prefs.getString(_keyDeadlockGamePath);

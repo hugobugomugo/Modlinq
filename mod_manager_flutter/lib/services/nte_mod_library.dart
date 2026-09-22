@@ -13,7 +13,19 @@ import 'archive_service.dart';
 class NteModLibrary {
   final String rootPath;
 
-  NteModLibrary(this.rootPath);
+  /// Extensions that count as installable payload, without the dot.
+  ///
+  /// NTE ships Unreal `.pak` and native `.asi` files; Deadlock ships Source 2
+  /// `.vpk` archives. Everything else about a library — importing, previews,
+  /// renaming — is identical, so the difference lives in this one set.
+  final Set<String> payloadExtensions;
+
+  NteModLibrary(
+    this.rootPath, {
+    this.payloadExtensions = defaultPayloadExtensions,
+  });
+
+  static const Set<String> defaultPayloadExtensions = {'pak', 'asi'};
 
   /// Files that live alongside a mod's payload but are never installed.
   static bool isHelperFile(String fileName) {
@@ -90,10 +102,13 @@ class NteModLibrary {
   ///
   /// Payload files include companions such as `.ucas` and `.utoc`, so presence
   /// of files alone does not make a folder a mod.
-  static bool hasInstallablePayload(String dirPath) {
+  static bool hasInstallablePayload(
+    String dirPath, {
+    Set<String> extensions = defaultPayloadExtensions,
+  }) {
     return payloadFilesIn(dirPath).any((file) {
-      final ext = p.extension(file).toLowerCase();
-      return ext == '.pak' || ext == '.asi';
+      final ext = p.extension(file).toLowerCase().replaceFirst('.', '');
+      return extensions.contains(ext);
     });
   }
 
@@ -107,7 +122,9 @@ class NteModLibrary {
       throw ArgumentError('Source folder does not exist: $sourcePath');
     }
 
-    if (!hasInstallablePayload(sourcePath)) return null;
+    if (!hasInstallablePayload(sourcePath, extensions: payloadExtensions)) {
+      return null;
+    }
 
     final name = nameOverride ?? p.basename(sourcePath);
     final target = Directory(p.join(rootPath, name));
@@ -153,7 +170,9 @@ class NteModLibrary {
       if (error != null) throw StateError(error);
 
       final contentRoot = _flattenedRoot(staging.path);
-      if (!hasInstallablePayload(contentRoot)) return null;
+      if (!hasInstallablePayload(contentRoot, extensions: payloadExtensions)) {
+        return null;
+      }
 
       ensureExists();
       _copyDirectory(Directory(contentRoot), target);

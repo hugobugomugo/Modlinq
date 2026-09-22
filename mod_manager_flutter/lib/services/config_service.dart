@@ -16,6 +16,10 @@ class ConfigService {
   static const String _keyNteModCategories = 'mod_categories_nte';
   static const String _keyNteEnabledMods = 'enabled_mods_nte';
   static const String _keyNteFavoriteMods = 'favorite_mods_nte';
+  static const String _keyDeadlockGamePath = 'game_path_deadlock';
+  static const String _keyDeadlockLibraryPath = 'library_path_deadlock';
+  static const String _keyDeadlockCategories = 'mod_categories_deadlock';
+  static const String _keyDeadlockSlots = 'slots_deadlock';
   static const String _keyNteAnticensor = 'anticensor_nte';
   static const String _keyNteHideUid = 'hide_uid_nte';
   static const String _keyActiveMods = 'active_mods';
@@ -122,6 +126,73 @@ class ConfigService {
   Future<bool> setNteEnabledMods(List<String> modNames) async {
     try {
       return await _prefs.setStringList(_keyNteEnabledMods, modNames);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String? get deadlockGamePath => _prefs.getString(_keyDeadlockGamePath);
+
+  Future<bool> setDeadlockGamePath(String value) async {
+    try {
+      return await _prefs.setString(_keyDeadlockGamePath, value);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String? get deadlockLibraryPath => _prefs.getString(_keyDeadlockLibraryPath);
+
+  Future<bool> setDeadlockLibraryPath(String value) async {
+    try {
+      return await _prefs.setString(_keyDeadlockLibraryPath, value);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Map<String, String> get deadlockModCategories {
+    final json = _prefs.getString(_keyDeadlockCategories);
+    if (json == null || json.isEmpty) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(json) as Map);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<bool> setDeadlockModCategory(String modName, String? category) async {
+    try {
+      final categories = deadlockModCategories;
+      if (category == null || category.isEmpty) {
+        categories.remove(modName);
+      } else {
+        categories[modName] = category;
+      }
+      return await _prefs.setString(
+        _keyDeadlockCategories,
+        jsonEncode(categories),
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Which `pakNN` slot each Deadlock mod occupies. The number is the load
+  /// order, and it cannot be recovered from the game folder once installed.
+  Map<String, int> get deadlockSlots {
+    final json = _prefs.getString(_keyDeadlockSlots);
+    if (json == null || json.isEmpty) return {};
+    try {
+      return Map<String, int>.from(jsonDecode(json) as Map);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  Future<bool> setDeadlockSlots(Map<String, int> slots) async {
+    try {
+      return await _prefs.setString(_keyDeadlockSlots, jsonEncode(slots));
     } catch (e) {
       return false;
     }

@@ -23,6 +23,29 @@ enum InstallKind {
   managed,
 }
 
+/// Outcome of a single update check, shaped for the UI: every state the user
+/// can end up in has its own value, so "check failed" never looks like
+/// "you are up to date".
+enum UpdateAvailability { upToDate, available, unsupported, failed }
+
+class UpdateCheckResult {
+  final UpdateAvailability availability;
+  final InstallKind kind;
+  final UpdateInfo? info;
+
+  /// Why the check failed, or why this install cannot update itself.
+  final String? error;
+
+  const UpdateCheckResult({
+    required this.availability,
+    required this.kind,
+    this.info,
+    this.error,
+  });
+
+  bool get hasUpdate => availability == UpdateAvailability.available;
+}
+
 class UpdateService {
   static const String repoSlug = 'hugobugomugo/Modlinq';
   static const String latestReleaseUrl =
@@ -152,12 +175,84 @@ class UpdateService {
 
   // ---- network ----
 
+  /// One call for the whole question "can this copy update, and to what".
+  ///
+  /// The UI needs the distinction between "nothing new", "cannot update this
+  /// way" and "the check itself failed" — a plain null cannot carry that.
+  Future<UpdateCheckResult> check({
+    String current = appVersion,
+    bool includePrereleases = false,
+    Directory? dir,
+  }) async {
+    final kind = await detectInstallKind(dir: dir);
+
+    if (kind == InstallKind.managed) {
+      return UpdateCheckResult(
+        availability: UpdateAvailability.unsupported,
+        kind: kind,
+        error: 'This copy is managed by your package manager',
+      );
+    }
+
+    final UpdateInfo? info;
+    try {
+      info = await _fetchUpdate(
+        current: current,
+        includePrereleases: includePrereleases,
+      );
+    } catch (e) {
+      return UpdateCheckResult(
+        availability: UpdateAvailability.failed,
+        kind: kind,
+        error: '$e',
+      );
+    }
+
+    if (info == null) {
+      return UpdateCheckResult(
+        availability: UpdateAvailability.upToDate,
+        kind: kind,
+      );
+    }
+
+    // An installed copy replaces itself by re-running the installer, so a
+    // release without one leaves it with nothing to do.
+    if (kind == InstallKind.installed && info.installerUrl == null) {
+      return UpdateCheckResult(
+        availability: UpdateAvailability.unsupported,
+        kind: kind,
+        info: info,
+        error: 'Release ${info.version} ships no Windows installer',
+      );
+    }
+
+    return UpdateCheckResult(
+      availability: UpdateAvailability.available,
+      kind: kind,
+      info: info,
+    );
+  }
+
   /// [includePrereleases] switches to the test channel, which sees dev builds.
   /// the stable endpoint already hides prereleases, so stable users are
   /// unaffected either way.
   Future<UpdateInfo?> checkForUpdate({
     String current = appVersion,
     bool includePrereleases = false,
+  }) async {
+    try {
+      return await _fetchUpdate(
+        current: current,
+        includePrereleases: includePrereleases,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<UpdateInfo?> _fetchUpdate({
+    required String current,
+    required bool includePrereleases,
   }) async {
     final res = await _client.get(
       Uri.parse(includePrereleases ? releasesUrl : latestReleaseUrl),
@@ -166,7 +261,9 @@ class UpdateService {
         'User-Agent': 'modlinq-updater',
       },
     );
-    if (res.statusCode != 200) return null;
+    if (res.statusCode != 200) {
+      throw HttpException('update check failed: ${res.statusCode}');
+    }
 
     final decoded = jsonDecode(res.body);
     if (decoded is! List) {

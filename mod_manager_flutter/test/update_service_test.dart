@@ -170,6 +170,109 @@ void main() {
     });
   });
 
+  group('check', () {
+    Map<String, dynamic> release(String tag, {bool withInstaller = true}) => {
+          'tag_name': tag,
+          'body': '',
+          'assets': [
+            {
+              'name': 'modlinq-2.1.0-linux-x64.zip',
+              'browser_download_url': 'https://example.test/linux.zip',
+              'size': 1,
+            },
+            {
+              'name': 'modlinq-2.1.0-windows-x64.zip',
+              'browser_download_url': 'https://example.test/windows.zip',
+              'size': 1,
+            },
+            if (withInstaller)
+              {
+                'name': 'modlinq-setup-2.1.0.exe',
+                'browser_download_url': 'https://example.test/setup.exe',
+                'size': 1,
+              },
+          ],
+        };
+
+    Directory tempDir() {
+      final dir = Directory.systemTemp.createTempSync('modlinq-check');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      return dir;
+    }
+
+    test('a package managed copy is told to use its package manager', () async {
+      final svc = UpdateService(
+        client: MockClient((_) async => http.Response('', 500)),
+      );
+
+      final result = await svc.check(
+        current: '2.0.0',
+        dir: Directory('/usr/lib/modlinq'),
+      );
+
+      expect(result.availability, UpdateAvailability.unsupported);
+      expect(result.kind, InstallKind.managed);
+    });
+
+    test('a newer release is reported as available', () async {
+      final svc = UpdateService(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(release('v2.1.0')), 200),
+        ),
+      );
+
+      final result = await svc.check(current: '2.0.0', dir: tempDir());
+
+      expect(result.availability, UpdateAvailability.available);
+      expect(result.info!.version, '2.1.0');
+      expect(result.hasUpdate, isTrue);
+    });
+
+    test('the current version reports up to date', () async {
+      final svc = UpdateService(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(release('v2.0.0')), 200),
+        ),
+      );
+
+      final result = await svc.check(current: '2.0.0', dir: tempDir());
+
+      expect(result.availability, UpdateAvailability.upToDate);
+      expect(result.hasUpdate, isFalse);
+    });
+
+    test('a failed check says so instead of claiming to be current', () async {
+      final svc = UpdateService(
+        client: MockClient((_) async => http.Response('boom', 500)),
+      );
+
+      final result = await svc.check(current: '2.0.0', dir: tempDir());
+
+      expect(result.availability, UpdateAvailability.failed);
+      expect(result.error, isNotNull);
+    });
+
+    test('an installed copy needs an installer in the release', () async {
+      final dir = tempDir();
+      File(p.join(dir.path, UpdateService.uninstallerName)).writeAsStringSync('');
+
+      final svc = UpdateService(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode(release('v2.1.0', withInstaller: false)),
+            200,
+          ),
+        ),
+      );
+
+      final result = await svc.check(current: '2.0.0', dir: dir);
+
+      expect(result.availability, UpdateAvailability.unsupported);
+      expect(result.kind, InstallKind.installed);
+      expect(result.error, isNotNull);
+    });
+  });
+
   group('checkForUpdate', () {
     Map<String, dynamic> release(String tag) => {
           'tag_name': tag,

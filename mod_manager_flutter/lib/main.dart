@@ -235,9 +235,13 @@ class _MainScreenState extends ConsumerState<MainScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final config = await ApiService.getConfigService();
-      if (mounted) {
-        UpdateDialog.maybeShow(context, testChannel: config.testChannel);
-      }
+      if (!mounted) return;
+
+      final result = await UpdateDialog.maybeShow(
+        context,
+        testChannel: config.testChannel,
+      );
+      if (mounted) ref.read(updateCheckProvider.notifier).setValue(result);
     });
   }
 
@@ -478,35 +482,12 @@ class _MainScreenState extends ConsumerState<MainScreen>
                           ),
                         ),
                         const Spacer(),
-                        // Footer with version badge
+                        // Footer with version badge, doubles as the update
+                        // entry point once a check found something
                         if (!isSidebarCollapsed)
                           Padding(
                             padding: const EdgeInsets.all(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isDarkMode
-                                    ? Colors.white.withValues(alpha: 0.05)
-                                    : Colors.black.withValues(alpha: 0.03),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isDarkMode
-                                      ? Colors.white.withValues(alpha: 0.1)
-                                      : Colors.black.withValues(alpha: 0.05),
-                                ),
-                              ),
-                              child: Text(
-                                'v$appVersion',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[500],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
+                            child: _buildVersionBadge(context, isDarkMode),
                           ),
                       ],
                     ),
@@ -545,6 +526,62 @@ class _MainScreenState extends ConsumerState<MainScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Shows the running version, and turns into a one-click update button when
+  /// the last check found a newer release.
+  Widget _buildVersionBadge(BuildContext context, bool isDarkMode) {
+    final update = ref.watch(updateCheckProvider);
+    final hasUpdate = update?.hasUpdate ?? false;
+
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: hasUpdate
+            ? const LinearGradient(colors: [Color(0xFF0EA5E9), Color(0xFF06B6D4)])
+            : null,
+        color: hasUpdate
+            ? null
+            : isDarkMode
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: hasUpdate
+              ? Colors.transparent
+              : isDarkMode
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasUpdate) ...[
+            const Icon(Icons.download_rounded, size: 13, color: Colors.white),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            hasUpdate ? 'v${update!.info!.version} laden' : 'v$appVersion',
+            style: TextStyle(
+              fontSize: 11,
+              color: hasUpdate ? Colors.white : Colors.grey[500],
+              fontWeight: hasUpdate ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!hasUpdate) return badge;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => UpdateDialog.show(context, update!),
+        child: badge,
       ),
     );
   }

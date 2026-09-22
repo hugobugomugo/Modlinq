@@ -4,6 +4,7 @@ import '../models/character_info.dart';
 import '../models/game_type.dart';
 import '../services/api_service.dart';
 import '../services/mod_manager_service.dart';
+import '../services/update_service.dart';
 
 export '../models/game_type.dart';
 
@@ -199,4 +200,19 @@ class _GameTypeNotifier extends Notifier<GameType> {
 
 final selectedGameProvider = NotifierProvider<_GameTypeNotifier, GameType>(
   _GameTypeNotifier.new,
+);
+
+
+/// Result of the last update check, set on startup and whenever the user
+/// checks by hand. Null means "not checked yet in this session".
+class _UpdateCheckNotifier extends Notifier<UpdateCheckResult?> {
+  @override
+  UpdateCheckResult? build() => null;
+
+  void setValue(UpdateCheckResult? value) => state = value;
+}
+
+final updateCheckProvider =
+    NotifierProvider<_UpdateCheckNotifier, UpdateCheckResult?>(
+  _UpdateCheckNotifier.new,
 );

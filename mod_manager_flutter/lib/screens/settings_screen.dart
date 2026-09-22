@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../core/app_version.dart';
 import '../core/constants.dart';
 import '../services/api_service.dart';
 import '../utils/state_providers.dart';
@@ -12,6 +13,8 @@ import '../services/nte_game_detection.dart';
 import '../services/nte_loader_installer.dart';
 import '../services/nte_loader_service.dart';
 import '../services/nte_mod_manager.dart';
+import '../services/update_service.dart';
+import 'components/update_dialog.dart';
 import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -38,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteAnticensor = false;
   bool _nteHideUid = false;
   bool _nteLoaderBusy = false;
+  bool _checkingUpdate = false;
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -422,6 +426,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                   style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
                                 ),
                               ),
+                              const SizedBox(height: 20),
+                              _buildUpdateCheck(isDarkMode),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -1279,6 +1285,97 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         ],
       ),
     );
+  }
+
+  /// Version row with a manual check, so nobody has to restart the app to
+  /// find out whether a release is waiting.
+  Widget _buildUpdateCheck(bool isDarkMode) {
+    final result = ref.watch(updateCheckProvider);
+
+    final (String status, Color color) = switch (result?.availability) {
+      null => ('Not checked yet', Colors.grey.shade600),
+      UpdateAvailability.upToDate => ('You are on the latest release', Colors.green.shade600),
+      UpdateAvailability.available => (
+        'Version ${result!.info!.version} is ready to install',
+        const Color(0xFF38BDF8),
+      ),
+      UpdateAvailability.unsupported => (
+        result!.error ?? 'This copy cannot update itself',
+        Colors.orange.shade600,
+      ),
+      UpdateAvailability.failed => (
+        'Check failed: ${result!.error}',
+        Colors.red.shade400,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Installed version v$appVersion',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDarkMode ? Colors.grey[200] : Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _checkingUpdate ? 'Checking…' : status,
+                  style: TextStyle(fontSize: 12, color: color, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (result?.hasUpdate ?? false)
+            ElevatedButton.icon(
+              onPressed: () => UpdateDialog.show(context, result!),
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Install'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0EA5E9),
+                foregroundColor: Colors.white,
+              ),
+            )
+          else
+            OutlinedButton(
+              onPressed: _checkingUpdate ? null : _checkForUpdate,
+              child: Text(_checkingUpdate ? 'Checking…' : 'Check for updates'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkForUpdate() async {
+    setState(() => _checkingUpdate = true);
+    try {
+      final result = await UpdateService().check(
+        includePrereleases: _testChannel,
+      );
+      if (!mounted) return;
+      ref.read(updateCheckProvider.notifier).setValue(result);
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   /// Reads what is actually in the game folder rather than what config says.

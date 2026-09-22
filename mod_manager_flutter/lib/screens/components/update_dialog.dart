@@ -24,35 +24,40 @@ class UpdateDialog extends StatefulWidget {
     this.installKind = InstallKind.portable,
   });
 
-  /// checks in the background and only shows a dialog when something is there
-  static Future<void> maybeShow(
+  /// Checks in the background and only shows a dialog when something is there.
+  ///
+  /// Returns the result so the caller can keep it around — the sidebar badge
+  /// and the settings page show the same state without checking again.
+  static Future<UpdateCheckResult> maybeShow(
     BuildContext context, {
     UpdateService? service,
     bool testChannel = false,
   }) async {
     final svc = service ?? UpdateService();
-    final kind = await UpdateService.detectInstallKind();
-    if (kind == InstallKind.managed) return;
+    final result = await svc.check(includePrereleases: testChannel);
 
-    UpdateInfo? info;
-    try {
-      info = await svc.checkForUpdate(includePrereleases: testChannel);
-    } catch (_) {
-      return;
-    }
-    if (info == null || !context.mounted) return;
+    if (!result.hasUpdate || !context.mounted) return result;
 
-    // An installed copy without an installer asset in the release would have
-    // nothing to run, and swapping Program Files files would fail.
-    if (kind == InstallKind.installed && info.installerUrl == null) return;
+    await show(context, result, service: svc);
+    return result;
+  }
+
+  /// Opens the dialog for an already known update.
+  static Future<void> show(
+    BuildContext context,
+    UpdateCheckResult result, {
+    UpdateService? service,
+  }) async {
+    final info = result.info;
+    if (info == null) return;
 
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (_) => UpdateDialog(
-        info: info!,
-        service: svc,
-        installKind: kind,
+        info: info,
+        service: service ?? UpdateService(),
+        installKind: result.kind,
       ),
     );
   }

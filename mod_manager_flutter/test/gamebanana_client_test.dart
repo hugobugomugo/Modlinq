@@ -211,24 +211,24 @@ void main() {
       expect(categories.first.id, 30305);
     });
 
-    test('picks the icon out of the preview media', () async {
+    test('prefers the banner, which is far larger than the 32px icon', () async {
       final client = GameBananaClient(
         client: MockClient(
           (_) async => http.Response(jsonEncode(profile()), 200),
         ),
       );
 
-      expect(await client.gameIconUrl(19567), 'https://img/icon.png');
+      expect(await client.gameArtworkUrl(19567), 'https://img/banner.jpg');
     });
 
-    test('a game without an icon returns null instead of the banner', () async {
+    test('falls back to the icon when there is no banner', () async {
       final client = GameBananaClient(
         client: MockClient(
           (_) async => http.Response(
             jsonEncode({
               '_aPreviewMedia': {
                 '_aImages': [
-                  {'_sType': 'banner', '_sUrl': 'https://img/banner.jpg'},
+                  {'_sType': 'icon', '_sUrl': 'https://img/icon.png'},
                 ],
               },
             }),
@@ -237,7 +237,15 @@ void main() {
         ),
       );
 
-      expect(await client.gameIconUrl(19567), isNull);
+      expect(await client.gameArtworkUrl(19567), 'https://img/icon.png');
+    });
+
+    test('a game without artwork returns null', () async {
+      final client = GameBananaClient(
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+
+      expect(await client.gameArtworkUrl(19567), isNull);
     });
   });
 

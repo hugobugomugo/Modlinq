@@ -1,30 +1,21 @@
-import 'dart:io';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as path;
 
-import '../games/deadlock/deadlock_manager.dart';
 import '../games/game_module.dart';
 import '../games/game_registry.dart';
 import '../services/api_service.dart';
 import '../services/archive_service.dart';
-import '../services/config_service.dart';
 import '../services/gamebanana_client.dart';
 import '../services/marketplace_queue.dart';
-import '../services/nte_mod_manager.dart';
-import '../services/nte_mods_adapter.dart';
-import '../utils/path_helper.dart';
 import '../utils/state_providers.dart';
 
 /// Browses GameBanana inside the app.
 ///
-/// Replaces the embedded browser: reading the public API means the grid looks
-/// like the rest of the app, downloads are verified against the published
-/// checksum, files GameBanana flagged are called out, and the catalogue can be
-/// paged instead of ending after one screen.
+/// The catalogue is read through the public API, so the grid looks like the
+/// rest of the app, downloads are verified against the published checksum, and
+/// paging goes all the way through the catalogue instead of stopping after one
+/// screenful. Installs run in an app-wide queue, which keeps them alive when
+/// this screen goes away.
 class MarketplaceScreen extends ConsumerStatefulWidget {
   const MarketplaceScreen({super.key});
 
@@ -36,8 +27,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   final GameBananaClient _client = GameBananaClient();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  late final MarketplaceQueue _queue = MarketplaceQueue(worker: _installJob);
 
   List<GameBananaMod> _mods = const [];
   List<GameBananaCategory> _categories = const [];
@@ -55,7 +44,15 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   String _query = '';
   bool _hideAdult = false;
 
+  MarketplaceQueue get _queue => ref.read(marketplaceQueueProvider);
+
   GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
+
+  static const Map<String, String> _sortLabels = {
+    GameBananaClient.sortNewest: 'Newest',
+    GameBananaClient.sortMostLiked: 'Most liked',
+    GameBananaClient.sortMostDownloaded: 'Most downloaded',
+  };
 
   @override
   void initState() {
@@ -67,19 +64,26 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
   @override
   void dispose() {
+    // The queue itself is app-wide and must survive this screen.
     _queue.removeListener(_onQueueChanged);
     _scrollController.dispose();
     _searchController.dispose();
-    _queue.dispose();
     super.dispose();
   }
 
-  void _onQueueChanged() {
-    if (mounted) setState(() {});
+  Future<void> _onQueueChanged() async {
+    if (!mounted) return;
+
+    final config = await ApiService.getConfigService();
+    if (!mounted) return;
+
+    setState(() {
+      _installedIds = config.installedMarketplaceMods(_game.key).toSet();
+    });
   }
 
   /// Loads the next page a little before the user hits the bottom, so
-  /// scrolling through 5000 mods never stalls on an empty screen.
+  /// scrolling through thousands of mods never stalls on an empty screen.
   void _onScroll() {
     if (!_scrollController.hasClients || _isLoadingMore || !_hasMore) return;
 
@@ -157,12 +161,43 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           page: page,
         );
 
-  /// Grid contents after the client-side filters.
+  /// Grid contents after the filters that the API cannot do itself.
   ///
-  /// GameBanana has no "safe only" server flag, so the 18+ filter runs here on
-  /// the `_bHasContentRatings` marker the API does return.
-  List<GameBananaMod> get _visibleMods =>
-      _hideAdult ? _mods.where((mod) => !mod.isAdult).toList() : _mods;
+  /// Search results come back unsorted and unfiltered — GameBanana's search
+  /// endpoint takes neither a sort nor a category — so sort and category are
+  /// applied here whenever a query is active. The 18+ filter is always local,
+  /// because the only marker the API exposes is per record.
+  List<GameBananaMod> get _visibleMods {
+    var mods = _mods;
+
+    if (_hideAdult) mods = mods.where((mod) => !mod.isAdult).toList();
+
+    if (_query.isNotEmpty) {
+      final category = _categoryNameOf(_categoryId);
+      if (category != null) {
+        mods = mods.where((mod) => mod.category == category).toList();
+      }
+
+      mods = [...mods]..sort(_compareForSort);
+    }
+
+    return mods;
+  }
+
+  int _compareForSort(GameBananaMod a, GameBananaMod b) => switch (_sort) {
+    GameBananaClient.sortMostLiked => b.likes.compareTo(a.likes),
+    GameBananaClient.sortMostDownloaded => b.views.compareTo(a.views),
+    _ => (b.updatedAt ?? DateTime(1970)).compareTo(a.updatedAt ?? DateTime(1970)),
+  };
+
+  String? _categoryNameOf(int? id) {
+    if (id == null) return null;
+
+    for (final category in _categories) {
+      if (category.id == id) return category.name;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +222,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           _buildHeader(isDarkMode),
           const SizedBox(height: 12),
           if (!_isConfigured) _buildNotConfiguredBanner(isDarkMode),
-          _buildFilters(isDarkMode),
+          _buildControls(isDarkMode),
           const SizedBox(height: 12),
           Expanded(child: _buildBody(isDarkMode)),
         ],
@@ -303,68 +338,145 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
   }
 
-  Widget _buildFilters(bool isDarkMode) {
-    if (_query.isNotEmpty) {
-      return Text(
-        'Results for "$_query"',
-        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-      );
-    }
+  /// Sort and filter stay put while searching, because a search over 5000 mods
+  /// needs them more than the unfiltered list does.
+  Widget _buildControls(bool isDarkMode) {
+    final activeFilters = [
+      if (_categoryId != null) _categoryNameOf(_categoryId),
+      if (_hideAdult) 'no 18+',
+    ].whereType<String>().toList();
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final entry in const {
-            GameBananaClient.sortNewest: 'Newest',
-            GameBananaClient.sortMostLiked: 'Most liked',
-            GameBananaClient.sortMostDownloaded: 'Most downloaded',
-          }.entries) ...[
-            ChoiceChip(
-              label: Text(entry.value, style: const TextStyle(fontSize: 11)),
-              selected: _sort == entry.key,
-              onSelected: (_) {
-                setState(() => _sort = entry.key);
-                _load();
-              },
-            ),
-            const SizedBox(width: 8),
+    return Row(
+      children: [
+        PopupMenuButton<String>(
+          initialValue: _sort,
+          tooltip: 'Sort by',
+          onSelected: (value) {
+            setState(() => _sort = value);
+            // A server-side sort needs a fresh page; a search is sorted here.
+            _query.isEmpty ? _load() : setState(() {});
+          },
+          itemBuilder: (context) => [
+            for (final entry in _sortLabels.entries)
+              PopupMenuItem(value: entry.key, child: Text(entry.value)),
           ],
-          FilterChip(
-            label: const Text('Hide 18+', style: TextStyle(fontSize: 11)),
-            selected: _hideAdult,
-            onSelected: (value) => setState(() => _hideAdult = value),
+          child: _controlChip(
+            icon: Icons.sort_rounded,
+            label: 'Sort by: ${_sortLabels[_sort]}',
+            isDarkMode: isDarkMode,
           ),
-          const SizedBox(width: 8),
-          if (_categories.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            Container(width: 1, height: 22, color: Colors.grey.withValues(alpha: 0.25)),
-            const SizedBox(width: 12),
-            ChoiceChip(
-              label: const Text('All', style: TextStyle(fontSize: 11)),
-              selected: _categoryId == null,
-              onSelected: (_) {
-                setState(() => _categoryId = null);
-                _load();
-              },
+        ),
+        const SizedBox(width: 10),
+        PopupMenuButton<String>(
+          tooltip: 'Filter',
+          onSelected: _onFilterSelected,
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'category:',
+              child: _checkableRow('All categories', _categoryId == null),
             ),
-            const SizedBox(width: 8),
-            for (final category in _categories) ...[
-              ChoiceChip(
-                label: Text(category.name, style: const TextStyle(fontSize: 11)),
-                selected: _categoryId == category.id,
-                onSelected: (_) {
-                  setState(() => _categoryId = category.id);
-                  _load();
-                },
+            for (final category in _categories)
+              PopupMenuItem(
+                value: 'category:${category.id}',
+                child: _checkableRow(
+                  category.name,
+                  _categoryId == category.id,
+                ),
               ),
-              const SizedBox(width: 8),
-            ],
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'adult',
+              child: _checkableRow('Hide 18+', _hideAdult),
+            ),
           ],
-        ],
-      ),
+          child: _controlChip(
+            icon: Icons.filter_list_rounded,
+            label: activeFilters.isEmpty
+                ? 'Filter'
+                : 'Filter: ${activeFilters.join(', ')}',
+            isDarkMode: isDarkMode,
+            isActive: activeFilters.isNotEmpty,
+          ),
+        ),
+        const Spacer(),
+        if (_query.isNotEmpty)
+          Text(
+            'Results for "$_query"',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+      ],
     );
   }
+
+  void _onFilterSelected(String value) {
+    if (value == 'adult') {
+      setState(() => _hideAdult = !_hideAdult);
+      return;
+    }
+
+    final id = value.substring('category:'.length);
+    setState(() => _categoryId = id.isEmpty ? null : int.tryParse(id));
+
+    // The index endpoint filters by category server-side; search does not.
+    if (_query.isEmpty) _load();
+  }
+
+  Widget _checkableRow(String label, bool selected) => Row(
+    children: [
+      Icon(
+        selected ? Icons.check_rounded : Icons.remove,
+        size: 15,
+        color: selected ? const Color(0xFF0EA5E9) : Colors.transparent,
+      ),
+      const SizedBox(width: 8),
+      Text(label),
+    ],
+  );
+
+  Widget _controlChip({
+    required IconData icon,
+    required String label,
+    required bool isDarkMode,
+    bool isActive = false,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: isActive
+          ? const Color(0xFF0EA5E9).withValues(alpha: 0.15)
+          : isDarkMode
+          ? Colors.white.withValues(alpha: 0.04)
+          : Colors.black.withValues(alpha: 0.04),
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(
+        color: isActive
+            ? const Color(0xFF0EA5E9).withValues(alpha: 0.4)
+            : isDarkMode
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.06),
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 15,
+          color: isActive ? const Color(0xFF38BDF8) : Colors.grey[500],
+        ),
+        const SizedBox(width: 7),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isActive ? const Color(0xFF38BDF8) : Colors.grey[400],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Icon(Icons.expand_more_rounded, size: 15, color: Colors.grey[600]),
+      ],
+    ),
+  );
 
   Widget _buildBody(bool isDarkMode) {
     if (_isLoading) {
@@ -395,7 +507,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     if (mods.isEmpty) {
       return Center(
         child: Text(
-          _mods.isEmpty ? 'Nothing found' : 'Everything here is 18+',
+          _mods.isEmpty ? 'Nothing found' : 'Everything here is filtered out',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       );
@@ -598,51 +710,28 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
   }
 
-  void _enqueue(GameBananaMod mod) {
-    if (!_queue.enqueue(mod, _game.key)) return;
-    setState(() {});
-  }
+  /// Picks the file and confirms a flagged one here, while the user is still
+  /// looking at the card. From then on the install needs no UI at all.
+  Future<void> _enqueue(GameBananaMod mod) async {
+    try {
+      final files = await _client.files(mod.id);
+      final installable = files
+          .where((file) => ArchiveService.isArchiveFile(file.name))
+          .toList();
 
-  /// Runs one queued install: pick a file, download it, verify it, hand it to
-  /// the game's installer, then keep the thumbnail as the mod's preview.
-  Future<String> _installJob(
-    MarketplaceJob job,
-    void Function(double) onProgress,
-  ) async {
-    final mod = job.mod;
-    final files = await _client.files(mod.id);
-    final installable = files
-        .where((file) => ArchiveService.isArchiveFile(file.name))
-        .toList();
+      if (installable.isEmpty) {
+        _snack('No supported archive attached to "${mod.name}"', isError: true);
+        return;
+      }
 
-    if (installable.isEmpty) {
-      throw StateError('No supported archive attached');
+      final file = installable.first;
+      if (!file.isScanClean && !await _confirmFlaggedFile(file)) return;
+
+      _queue.enqueue(mod, file, _game.key);
+      if (mounted) setState(() {});
+    } catch (e) {
+      _snack('$e', isError: true);
     }
-
-    final file = installable.first;
-    if (!file.isScanClean && !await _confirmFlaggedFile(file)) {
-      throw StateError('Cancelled: flagged by GameBanana');
-    }
-
-    final archive = await _download(file, onProgress);
-
-    if (!await _checksumMatches(archive, file)) {
-      await archive.delete();
-      throw StateError('Checksum mismatch');
-    }
-
-    final installedName = await _importArchive(archive, mod);
-
-    final config = await ApiService.getConfigService();
-    await config.setMarketplaceInstalled(job.gameKey, mod.id, true);
-    await _savePreview(mod, installedName, config);
-
-    if (mounted) {
-      setState(() => _installedIds = {..._installedIds, '${mod.id}'});
-      _snack('"$installedName" installed');
-    }
-
-    return installedName;
   }
 
   /// GameBanana scans uploads; a non-ok verdict is worth a stop, not a block.
@@ -672,129 +761,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
 
     return proceed ?? false;
-  }
-
-  Future<File> _download(
-    GameBananaFile file,
-    void Function(double) onProgress,
-  ) async {
-    final dir = await Directory.systemTemp.createTemp('modlinq-marketplace');
-    final target = File(path.join(dir.path, file.name));
-
-    final request = http.Request('GET', Uri.parse(file.downloadUrl));
-    request.headers['User-Agent'] = 'modlinq-marketplace';
-
-    final response = await http.Client().send(request);
-    if (response.statusCode != 200) {
-      throw http.ClientException('Download failed (${response.statusCode})');
-    }
-
-    final total = response.contentLength ?? file.size;
-    var received = 0;
-    final sink = target.openWrite();
-
-    await for (final chunk in response.stream) {
-      received += chunk.length;
-      sink.add(chunk);
-      if (total > 0) onProgress(received / total);
-    }
-    await sink.close();
-
-    return target;
-  }
-
-  /// GameBanana publishes an md5 per file; a truncated download fails here
-  /// instead of producing a broken mod folder.
-  Future<bool> _checksumMatches(File archive, GameBananaFile file) async {
-    final expected = file.md5;
-    if (expected == null || expected.isEmpty) return true;
-
-    final digest = await md5.bind(archive.openRead()).first;
-    return digest.toString().toLowerCase() == expected.toLowerCase();
-  }
-
-  /// Routes the archive to whichever installer the selected game uses.
-  Future<String> _importArchive(File archive, GameBananaMod mod) async {
-    final config = await ApiService.getConfigService();
-    final game = ref.read(selectedGameProvider);
-
-    if (game.usesPakMods) {
-      final FileModManager? manager = game.key == 'deadlock'
-          ? DeadlockModManager.fromConfig(config)
-          : NteModManager.fromConfig(config);
-
-      if (manager == null) {
-        throw StateError('Set the game folder in settings first');
-      }
-
-      final skipped = <String, String>{};
-      final imported = await manager.import([archive.path], skipped: skipped);
-
-      if (imported.isEmpty) {
-        throw StateError(skipped.values.firstOrNull ?? 'Nothing imported');
-      }
-
-      return imported.first.name;
-    }
-
-    // 3DMigoto games: unpack, then hand the folders to the existing importer.
-    final extraction = await ArchiveService.extractArchive(archiveFile: archive);
-    if (!extraction.success) {
-      throw StateError(extraction.error ?? 'Archive format not supported');
-    }
-
-    final folders = extraction.extractedFolders ?? const [];
-    if (folders.isEmpty) throw StateError('The archive held no mod folder');
-
-    final modManager = await ApiService.getModManagerService();
-    final (imported, _) = await modManager.importMods(folders);
-
-    if (imported.isEmpty) throw StateError('Mod was already there');
-
-    return imported.first;
-  }
-
-  /// Keeps the marketplace thumbnail as the mod's preview image.
-  ///
-  /// Most archives ship no picture, so a freshly installed mod used to show up
-  /// as a grey tile even though the store page had artwork.
-  Future<void> _savePreview(
-    GameBananaMod mod,
-    String installedName,
-    ConfigService config,
-  ) async {
-    final url = mod.thumbnailUrl;
-    if (url == null) return;
-
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) return;
-
-      final game = ref.read(selectedGameProvider);
-
-      if (game.usesPakMods) {
-        final FileModManager? manager = game.key == 'deadlock'
-            ? DeadlockModManager.fromConfig(config)
-            : NteModManager.fromConfig(config);
-
-        manager?.setPreviewImage(
-          installedName,
-          response.bodyBytes,
-          extension: path.extension(url).replaceFirst('.', '').toLowerCase(),
-        );
-        return;
-      }
-
-      // ZZZ and WW read a user image from the app's mod-images folder, which
-      // takes priority over whatever the archive contained.
-      final target = File(
-        path.join(PathHelper.getModImagesPath(), '$installedName.png'),
-      );
-      target.parent.createSync(recursive: true);
-      await target.writeAsBytes(response.bodyBytes, flush: true);
-    } catch (_) {
-      // A missing preview is cosmetic; never fail an install over it.
-    }
   }
 
   void _snack(String message, {bool isError = false}) {

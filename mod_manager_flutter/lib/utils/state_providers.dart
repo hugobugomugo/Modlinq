@@ -4,6 +4,8 @@ import '../models/character_info.dart';
 import '../models/game_type.dart';
 import '../services/api_service.dart';
 import '../services/mod_manager_service.dart';
+import '../services/marketplace_installer.dart';
+import '../services/marketplace_queue.dart';
 import '../services/update_service.dart';
 
 export '../models/game_type.dart';
@@ -216,3 +218,16 @@ final updateCheckProvider =
     NotifierProvider<_UpdateCheckNotifier, UpdateCheckResult?>(
   _UpdateCheckNotifier.new,
 );
+
+/// App-wide install queue.
+///
+/// It lives in the provider scope rather than in the marketplace screen:
+/// leaving the tab disposes that screen, and a download must not die because
+/// the user went to look at their mods while it ran.
+final marketplaceQueueProvider = Provider<MarketplaceQueue>((ref) {
+  final installer = MarketplaceInstaller();
+  final queue = MarketplaceQueue(worker: installer.install);
+
+  ref.onDispose(queue.dispose);
+  return queue;
+});

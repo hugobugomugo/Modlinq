@@ -16,9 +16,15 @@ class GameIconStore {
 
   static const List<String> supportedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
 
-  /// Prefix for icons fetched from GameBanana, kept apart from the user's own
-  /// so "reset icon" falls back to the fetched one instead of to a letter.
-  static const String autoPrefix = 'auto_';
+  /// Prefix for artwork fetched from GameBanana, kept apart from the user's
+  /// own so "reset icon" falls back to it instead of to a letter.
+  ///
+  /// Versioned: the first release cached 32x32 game icons, which looked awful
+  /// on the tile. Bumping the prefix retires those without asking anyone to
+  /// clear a cache.
+  static const String autoPrefix = 'auto2_';
+
+  static const String _legacyAutoPrefix = 'auto_';
 
   /// Path of [game]'s custom icon, or null when it still uses the bundled one.
   String? iconPathFor(GameType game) {
@@ -47,6 +53,9 @@ class GameIconStore {
     final target = File(p.join(rootPath, '$autoPrefix${game.key}.png'));
     target.parent.createSync(recursive: true);
     await target.writeAsBytes(bytes, flush: true);
+
+    final legacy = File(p.join(rootPath, '$_legacyAutoPrefix${game.key}.png'));
+    if (legacy.existsSync()) await legacy.delete();
 
     return target.path;
   }

@@ -190,16 +190,22 @@ class GameBananaClient {
         .toList();
   }
 
-  /// The game's own icon, used as the default tile in the game rail.
-  Future<String?> gameIconUrl(int gameId) async {
+  /// Artwork for the game rail.
+  ///
+  /// The banner comes first on purpose: GameBanana's game icons are 32x32 and
+  /// look like mush on a 52px tile, while banners are around 460x215 and crop
+  /// to a sharp square. The icon stays as the fallback.
+  Future<String?> gameArtworkUrl(int gameId) async {
     final json = await _get(Uri.parse('$base/Game/$gameId/ProfilePage'));
     final images = (json['_aPreviewMedia']?['_aImages'] as List?) ?? const [];
 
+    String? iconUrl;
     for (final image in images.cast<Map<String, dynamic>>()) {
-      if (image['_sType'] == 'icon') return image['_sUrl'] as String?;
+      if (image['_sType'] == 'banner') return image['_sUrl'] as String?;
+      if (image['_sType'] == 'icon') iconUrl ??= image['_sUrl'] as String?;
     }
 
-    return null;
+    return iconUrl;
   }
 
   /// Newest or most popular submissions of a game.

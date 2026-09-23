@@ -9,6 +9,10 @@ enum MarketplaceJobStatus { queued, running, done, failed }
 class MarketplaceJob {
   final GameBananaMod mod;
 
+  /// The archive to install. Picked before queueing, so a file GameBanana
+  /// flagged is confirmed while the user is still looking at the card.
+  final GameBananaFile file;
+
   /// Game key the mod is being installed for. A job started for one game must
   /// not be reported as installed for another.
   final String gameKey;
@@ -25,6 +29,7 @@ class MarketplaceJob {
 
   const MarketplaceJob({
     required this.mod,
+    required this.file,
     required this.gameKey,
     this.status = MarketplaceJobStatus.queued,
     this.progress,
@@ -43,6 +48,7 @@ class MarketplaceJob {
     String? installedAs,
   }) => MarketplaceJob(
     mod: mod,
+    file: file,
     gameKey: gameKey,
     status: status ?? this.status,
     progress: progress ?? this.progress,
@@ -83,13 +89,13 @@ class MarketplaceQueue extends ValueNotifier<List<MarketplaceJob>> {
   }
 
   /// Adds a job unless the same mod is already queued or running.
-  bool enqueue(GameBananaMod mod, String gameKey) {
+  bool enqueue(GameBananaMod mod, GameBananaFile file, String gameKey) {
     final existing = jobFor(mod.id, gameKey);
     if (existing != null && !existing.isFinished) return false;
 
     value = [
       ...value.where((job) => !(job.mod.id == mod.id && job.gameKey == gameKey)),
-      MarketplaceJob(mod: mod, gameKey: gameKey),
+      MarketplaceJob(mod: mod, file: file, gameKey: gameKey),
     ];
 
     _drain();
@@ -161,6 +167,7 @@ class MarketplaceQueue extends ValueNotifier<List<MarketplaceJob>> {
       profileUrl: '',
       hasFiles: false,
     ),
+    file: GameBananaFile(name: '', size: 0, downloadUrl: ''),
     gameKey: '',
   );
 }

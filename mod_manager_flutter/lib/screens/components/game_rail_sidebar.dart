@@ -75,7 +75,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
       if (_icons.effectiveIconPath(module.type) != null) continue;
 
       try {
-        final url = await client.gameIconUrl(module.marketplaceGameId);
+        final url = await client.gameArtworkUrl(module.marketplaceGameId);
         if (url == null) continue;
 
         final response = await http.get(Uri.parse(url));

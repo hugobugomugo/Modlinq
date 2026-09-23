@@ -1,2 +1,2 @@
 // must match the version field in pubspec.yaml (locked by a test)
-const String appVersion = '2.1.0';
+const String appVersion = '2.1.1';

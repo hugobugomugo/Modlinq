@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 
@@ -11,6 +12,7 @@ import '../../games/game_module.dart';
 import '../../games/game_rail.dart';
 import '../../games/game_registry.dart';
 import '../../services/api_service.dart';
+import '../../services/gamebanana_client.dart';
 import '../../services/config_service.dart';
 import '../../utils/path_helper.dart';
 import '../../utils/state_providers.dart';
@@ -57,6 +59,34 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
       _hidden = config.hiddenGames;
       _categories = config.gameCategories;
     });
+
+    _fetchMissingIcons();
+  }
+
+  /// Pulls each game's icon off its GameBanana page once and caches it.
+  ///
+  /// Shipping artwork for every supported game would mean bundling logos we
+  /// have no licence for; GameBanana already hosts one per game, and the user
+  /// can override it anyway.
+  Future<void> _fetchMissingIcons() async {
+    final client = GameBananaClient();
+
+    for (final module in GameRegistry.modules) {
+      if (_icons.effectiveIconPath(module.type) != null) continue;
+
+      try {
+        final url = await client.gameIconUrl(module.marketplaceGameId);
+        if (url == null) continue;
+
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode != 200) continue;
+
+        await _icons.saveAutoIcon(module.type, response.bodyBytes);
+        if (mounted) setState(() {});
+      } catch (_) {
+        // Offline or a changed page: the letter tile is a fine fallback.
+      }
+    }
   }
 
   List<GameRailGroup> get _groups => GameRail.layout(
@@ -135,7 +165,7 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
 
   Widget _buildTile(GameModule module, GameType selected, bool isDarkMode) {
     final isActive = module.type == selected;
-    final iconPath = _icons.iconPathFor(module.type);
+    final iconPath = _icons.effectiveIconPath(module.type);
     final isFavorite = _favorites.contains(module.key);
 
     return Tooltip(

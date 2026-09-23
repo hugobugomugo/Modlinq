@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../utils/state_providers.dart';
 import '../utils/game_roster.dart';
 import '../games/deadlock/deadlock_detection.dart';
+import '../games/game_registry.dart';
 import '../games/deadlock/deadlock_manager.dart';
 import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
@@ -46,7 +47,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteHideUid = false;
   bool _nteLoaderBusy = false;
   bool _checkingUpdate = false;
-  List<String> _hiddenMods = const [];
+  Map<String, List<String>> _hiddenModsByGame = const {};
+  List<String> _hiddenGames = const [];
   late AnimationController _loadingAnimationController;
   late Animation<double> _loadingAnimation;
 
@@ -356,6 +358,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               _buildSectionTitle(loc.t('settings.sections.auto_f10')),
                               const SizedBox(height: 16),
                               _buildF10Section(loc, isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Hidden mods'),
+                              const SizedBox(height: 16),
+                              _buildHiddenMods(GameType.zzz, isDarkMode),
                             ],
                           ),
                           _buildCollapsibleSection(
@@ -381,6 +387,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                                 isDarkMode: isDarkMode,
                                 loc: loc,
                               ),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Hidden mods'),
+                              const SizedBox(height: 16),
+                              _buildHiddenMods(GameType.wutheringWaves, isDarkMode),
                             ],
                           ),
                           _buildCollapsibleSection(
@@ -408,6 +418,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               ),
                               const SizedBox(height: 24),
                               _buildNteLoaderSection(isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Hidden mods'),
+                              const SizedBox(height: 16),
+                              _buildHiddenMods(GameType.nte, isDarkMode),
                             ],
                           ),
                           _buildCollapsibleSection(
@@ -435,6 +449,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               ),
                               const SizedBox(height: 16),
                               _buildDeadlockTools(isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Hidden mods'),
+                              const SizedBox(height: 16),
+                              _buildHiddenMods(GameType.deadlock, isDarkMode),
                             ],
                           ),
                           _buildCollapsibleSection(
@@ -497,9 +515,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               const SizedBox(height: 20),
                               _buildUpdateCheck(isDarkMode),
                               const SizedBox(height: 24),
-                              _buildSectionTitle('Hidden mods'),
+                              _buildSectionTitle('Hidden games'),
                               const SizedBox(height: 16),
-                              _buildHiddenMods(isDarkMode),
+                              _buildHiddenGames(isDarkMode),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -1361,23 +1379,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
 
   Future<void> _loadHiddenMods() async {
     final configService = await ApiService.getConfigService();
-    final hidden = configService.hiddenMods(
-      ref.read(selectedGameProvider).key,
-    );
+
+    final byGame = {
+      for (final module in GameRegistry.modules)
+        module.key: configService.hiddenMods(module.key),
+    };
     if (!mounted) return;
 
-    setState(() => _hiddenMods = hidden);
+    setState(() {
+      _hiddenModsByGame = byGame;
+      _hiddenGames = configService.hiddenGames;
+    });
   }
 
-  /// Lists what the user hid in the mods grid, with a way back.
+  /// Lists what the user hid in this game's grid, with a way back.
   ///
-  /// Hiding lives here rather than only in the grid because a hidden mod is
-  /// invisible there by definition — without this list it could never be
-  /// undone.
-  Widget _buildHiddenMods(bool isDarkMode) {
-    final game = ref.watch(selectedGameProvider);
+  /// It sits in the game's own section because a hidden mod belongs to one
+  /// game; showing NTE's hidden mods while Deadlock is selected was the bug
+  /// this replaces.
+  Widget _buildHiddenMods(GameType game, bool isDarkMode) {
+    final hidden = _hiddenModsByGame[game.key] ?? const [];
 
-    if (_hiddenMods.isEmpty) {
+    if (hidden.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Text(
@@ -1395,12 +1418,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final name in _hiddenMods)
+            for (final name in hidden)
               InputChip(
                 label: Text(name, style: const TextStyle(fontSize: 12)),
                 deleteIcon: const Icon(Icons.visibility_rounded, size: 16),
-                onDeleted: () => _unhideMod(name),
-                onPressed: () => _unhideMod(name),
+                onDeleted: () => _unhideMod(game, name),
+                onPressed: () => _unhideMod(game, name),
               ),
           ],
         ),
@@ -1417,12 +1440,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     );
   }
 
-  Future<void> _unhideMod(String modName) async {
+  Future<void> _unhideMod(GameType game, String modName) async {
     final configService = await ApiService.getConfigService();
-    await configService.setModHidden(
-      ref.read(selectedGameProvider).key,
-      modName,
-      false,
+    await configService.setModHidden(game.key, modName, false);
+
+    await _loadHiddenMods();
+  }
+
+  /// Games the user took out of the rail. Without this list they would be
+  /// gone for good, because the rail is exactly where they are missing.
+  Widget _buildHiddenGames(bool isDarkMode) {
+    if (_hiddenGames.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(
+          'Every game is shown in the rail. Right-click a game tile and pick '
+          '"Hide game" to take it out; nothing about its mods changes.',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final key in _hiddenGames)
+          InputChip(
+            label: Text(
+              GameRegistry.byKey(key)?.displayName ?? key,
+              style: const TextStyle(fontSize: 12),
+            ),
+            deleteIcon: const Icon(Icons.visibility_rounded, size: 16),
+            onDeleted: () => _unhideGame(key),
+            onPressed: () => _unhideGame(key),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _unhideGame(String gameKey) async {
+    final configService = await ApiService.getConfigService();
+    await configService.setHiddenGames(
+      configService.hiddenGames.where((key) => key != gameKey).toList(),
     );
 
     await _loadHiddenMods();

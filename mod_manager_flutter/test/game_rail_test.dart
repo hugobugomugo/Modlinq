@@ -138,6 +138,27 @@ void main() {
       expect(store.iconPathFor(GameType.zzz), isNull);
     });
 
+    test('a fetched icon is used until the user sets their own', () async {
+      await store.saveAutoIcon(GameType.zzz, [9]);
+
+      expect(store.hasCustomIcon(GameType.zzz), isFalse);
+      expect(store.effectiveIconPath(GameType.zzz), store.autoIconPathFor(GameType.zzz));
+
+      await store.setIcon(GameType.zzz, [1]);
+
+      expect(store.effectiveIconPath(GameType.zzz), store.iconPathFor(GameType.zzz));
+    });
+
+    test('resetting falls back to the fetched icon, not to nothing', () async {
+      await store.saveAutoIcon(GameType.zzz, [9]);
+      await store.setIcon(GameType.zzz, [1]);
+
+      await store.clearIcon(GameType.zzz);
+
+      expect(store.effectiveIconPath(GameType.zzz), isNotNull);
+      expect(store.hasCustomIcon(GameType.zzz), isFalse);
+    });
+
     test('clearing a game without a custom icon is not an error', () async {
       expect(() => store.clearIcon(GameType.nte), returnsNormally);
     });

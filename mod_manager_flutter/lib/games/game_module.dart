@@ -1,4 +1,5 @@
 import '../models/game_type.dart';
+import '../services/config_service.dart';
 
 /// What a game can do, asked by the shared screens instead of checking which
 /// game is selected.
@@ -51,6 +52,13 @@ abstract class GameModule {
   int get marketplaceGameId;
 
   GameCaps get caps;
+
+  /// Whether this game has the folders it needs to install anything.
+  ///
+  /// The marketplace asks before offering an install: downloading a mod for a
+  /// game whose folder is unknown would end in an error after the download,
+  /// which is the worst possible moment to find out.
+  bool isConfigured(ConfigService config);
 
   String get marketplaceUrl => 'https://gamebanana.com/games/$marketplaceGameId';
 

@@ -196,6 +196,31 @@ class ConfigService {
     }
   }
 
+  /// GameBanana ids the user installed through the marketplace, per game.
+  ///
+  /// Without this the cards would still read "Install" after a successful
+  /// install, because the library name rarely matches the GameBanana title.
+  List<String> installedMarketplaceMods(String gameKey) =>
+      _prefs.getStringList('marketplace_installed_$gameKey') ?? [];
+
+  Future<bool> setMarketplaceInstalled(
+    String gameKey,
+    int modId,
+    bool installed,
+  ) async {
+    final ids = installedMarketplaceMods(gameKey).toSet();
+    installed ? ids.add('$modId') : ids.remove('$modId');
+
+    try {
+      return await _prefs.setStringList(
+        'marketplace_installed_$gameKey',
+        ids.toList(),
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Mods the user does not want to see, per game.
   ///
   /// Hiding is display-only: an installed mod stays installed, so the list can

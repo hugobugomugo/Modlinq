@@ -16,6 +16,10 @@ class GameIconStore {
 
   static const List<String> supportedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
 
+  /// Prefix for icons fetched from GameBanana, kept apart from the user's own
+  /// so "reset icon" falls back to the fetched one instead of to a letter.
+  static const String autoPrefix = 'auto_';
+
   /// Path of [game]'s custom icon, or null when it still uses the bundled one.
   String? iconPathFor(GameType game) {
     for (final extension in supportedExtensions) {
@@ -27,6 +31,25 @@ class GameIconStore {
   }
 
   bool hasCustomIcon(GameType game) => iconPathFor(game) != null;
+
+  /// Icon fetched from the game's GameBanana page, if it was cached already.
+  String? autoIconPathFor(GameType game) {
+    final candidate = p.join(rootPath, '$autoPrefix${game.key}.png');
+    return File(candidate).existsSync() ? candidate : null;
+  }
+
+  /// What the rail should draw: the user's icon wins, the fetched one is the
+  /// fallback, and a letter tile is what is left when neither exists.
+  String? effectiveIconPath(GameType game) =>
+      iconPathFor(game) ?? autoIconPathFor(game);
+
+  Future<String> saveAutoIcon(GameType game, List<int> bytes) async {
+    final target = File(p.join(rootPath, '$autoPrefix${game.key}.png'));
+    target.parent.createSync(recursive: true);
+    await target.writeAsBytes(bytes, flush: true);
+
+    return target.path;
+  }
 
   /// Writes a new icon, replacing any previous one regardless of its format.
   Future<String> setIcon(

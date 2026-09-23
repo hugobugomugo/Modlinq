@@ -1,4 +1,5 @@
 import '../models/game_type.dart';
+import '../services/config_service.dart';
 import 'game_module.dart';
 
 class WuwaModule extends GameModule {
@@ -18,4 +19,8 @@ class WuwaModule extends GameModule {
 
   @override
   GameCaps get caps => const GameCaps(hasCharacters: true);
+
+  @override
+  bool isConfigured(ConfigService config) =>
+      (config.wwModsPath ?? '').isNotEmpty;
 }

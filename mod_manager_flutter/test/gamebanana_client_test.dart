@@ -100,6 +100,147 @@ void main() {
     });
   });
 
+  group('index', () {
+    Map<String, dynamic> indexPage({int total = 120}) => {
+      '_aMetadata': {'_nRecordCount': total, '_nPerpage': 50},
+      '_aRecords': [
+        {
+          '_idRow': 1,
+          '_sModelName': 'Mod',
+          '_sName': 'Censor Remover',
+          '_sProfileUrl': 'https://gamebanana.com/mods/1',
+          '_bHasFiles': true,
+          '_nLikeCount': 7142,
+          '_nViewCount': 900000,
+          '_bHasContentRatings': true,
+          '_aSubmitter': {'_sName': 'someone'},
+          '_aRootCategory': {'_sName': 'Character Skins'},
+          '_aPreviewMedia': {'_aImages': []},
+        },
+      ],
+    };
+
+    test('asks the index endpoint with game, sort and paging', () async {
+      late Uri seen;
+      final client = GameBananaClient(
+        client: MockClient((request) async {
+          seen = request.url;
+          return http.Response(jsonEncode(indexPage()), 200);
+        }),
+      );
+
+      await client.index(
+        gameId: 19567,
+        page: 2,
+        sort: GameBananaClient.sortMostLiked,
+      );
+
+      expect(seen.path, '/apiv11/Mod/Index');
+      expect(seen.queryParameters['_aFilters[Generic_Game]'], '19567');
+      expect(seen.queryParameters['_nPage'], '2');
+      expect(seen.queryParameters['_nPerpage'], '50');
+      expect(seen.queryParameters['_sSort'], 'Generic_MostLiked');
+    });
+
+    test('adds a category filter only when one is picked', () async {
+      late Uri seen;
+      final client = GameBananaClient(
+        client: MockClient((request) async {
+          seen = request.url;
+          return http.Response(jsonEncode(indexPage()), 200);
+        }),
+      );
+
+      await client.index(gameId: 19567);
+      expect(seen.queryParameters.containsKey('_aFilters[Generic_Category]'), isFalse);
+
+      await client.index(gameId: 19567, categoryId: 30395);
+      expect(seen.queryParameters['_aFilters[Generic_Category]'], '30395');
+    });
+
+    test('carries likes, views and the adult flag', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(indexPage()), 200),
+        ),
+      );
+
+      final page = await client.index(gameId: 19567);
+
+      expect(page.mods.single.likes, 7142);
+      expect(page.mods.single.views, 900000);
+      expect(page.mods.single.isAdult, isTrue);
+    });
+
+    test('knows whether another page exists', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(indexPage(total: 120)), 200),
+        ),
+      );
+
+      expect((await client.index(gameId: 1, page: 1)).hasMore, isTrue);
+      expect((await client.index(gameId: 1, page: 3)).hasMore, isFalse);
+    });
+  });
+
+  group('game profile', () {
+    Map<String, dynamic> profile() => {
+      '_aPreviewMedia': {
+        '_aImages': [
+          {'_sType': 'banner', '_sUrl': 'https://img/banner.jpg'},
+          {'_sType': 'icon', '_sUrl': 'https://img/icon.png'},
+        ],
+      },
+      '_aModRootCategories': [
+        {'_idRow': 30305, '_sName': 'Character Skins'},
+        {'_idRow': 30395, '_sName': 'UI'},
+      ],
+    };
+
+    test('reads the category list', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(profile()), 200),
+        ),
+      );
+
+      final categories = await client.categories(19567);
+
+      expect(categories.map((c) => c.name), ['Character Skins', 'UI']);
+      expect(categories.first.id, 30305);
+    });
+
+    test('picks the icon out of the preview media', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(profile()), 200),
+        ),
+      );
+
+      expect(await client.gameIconUrl(19567), 'https://img/icon.png');
+    });
+
+    test('a game without an icon returns null instead of the banner', () async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              '_aPreviewMedia': {
+                '_aImages': [
+                  {'_sType': 'banner', '_sUrl': 'https://img/banner.jpg'},
+                ],
+              },
+            }),
+            200,
+          ),
+        ),
+      );
+
+      expect(await client.gameIconUrl(19567), isNull);
+    });
+  });
+
   group('search', () {
     test('scopes the query to one game', () async {
       late Uri seen;

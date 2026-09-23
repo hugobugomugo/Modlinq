@@ -52,6 +52,29 @@ void main() {
     });
   });
 
+  group('marketplace installs', () {
+    test('an installed gamebanana id is remembered per game', () async {
+      await config.setMarketplaceInstalled('zzz', 719772, true);
+
+      expect(config.installedMarketplaceMods('zzz'), ['719772']);
+      expect(config.installedMarketplaceMods('nte'), isEmpty);
+    });
+
+    test('installing the same mod twice keeps one entry', () async {
+      await config.setMarketplaceInstalled('zzz', 1, true);
+      await config.setMarketplaceInstalled('zzz', 1, true);
+
+      expect(config.installedMarketplaceMods('zzz'), ['1']);
+    });
+
+    test('an id can be dropped again', () async {
+      await config.setMarketplaceInstalled('zzz', 1, true);
+      await config.setMarketplaceInstalled('zzz', 1, false);
+
+      expect(config.installedMarketplaceMods('zzz'), isEmpty);
+    });
+  });
+
   group('hidden mods', () {
     test('hiding and unhiding a mod', () async {
       await config.setModHidden('zzz', 'Ugly Skin', true);

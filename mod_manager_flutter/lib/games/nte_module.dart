@@ -1,4 +1,5 @@
 import '../models/game_type.dart';
+import '../services/config_service.dart';
 import 'game_module.dart';
 
 class NteModule extends GameModule {
@@ -19,4 +20,8 @@ class NteModule extends GameModule {
   @override
   GameCaps get caps =>
       const GameCaps(usesPakMods: true, needsLoader: true);
+
+  @override
+  bool isConfigured(ConfigService config) =>
+      (config.nteGamePath ?? '').isNotEmpty;
 }

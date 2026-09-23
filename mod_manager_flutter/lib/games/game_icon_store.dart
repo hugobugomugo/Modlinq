@@ -19,12 +19,12 @@ class GameIconStore {
   /// Prefix for artwork fetched from GameBanana, kept apart from the user's
   /// own so "reset icon" falls back to it instead of to a letter.
   ///
-  /// Versioned: the first release cached 32x32 game icons, which looked awful
-  /// on the tile. Bumping the prefix retires those without asking anyone to
-  /// clear a cache.
-  static const String autoPrefix = 'auto2_';
+  /// Versioned so a changed source retires old caches without anyone having
+  /// to clear anything: v1 cached 32x32 icons stretched over the tile, v2
+  /// cached promo banners, which were sharp but showed the wrong artwork.
+  static const String autoPrefix = 'auto3_';
 
-  static const String _legacyAutoPrefix = 'auto_';
+  static const List<String> _legacyAutoPrefixes = ['auto_', 'auto2_'];
 
   /// Path of [game]'s custom icon, or null when it still uses the bundled one.
   String? iconPathFor(GameType game) {
@@ -54,8 +54,10 @@ class GameIconStore {
     target.parent.createSync(recursive: true);
     await target.writeAsBytes(bytes, flush: true);
 
-    final legacy = File(p.join(rootPath, '$_legacyAutoPrefix${game.key}.png'));
-    if (legacy.existsSync()) await legacy.delete();
+    for (final prefix in _legacyAutoPrefixes) {
+      final legacy = File(p.join(rootPath, '$prefix${game.key}.png'));
+      if (legacy.existsSync()) await legacy.delete();
+    }
 
     return target.path;
   }

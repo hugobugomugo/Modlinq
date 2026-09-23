@@ -225,23 +225,38 @@ class _GameRailSidebarState extends ConsumerState<GameRailSidebar> {
                           ),
                         ),
                       )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(13),
-                        child: Image.file(
-                          File(iconPath),
-                          fit: BoxFit.cover,
-                          width: 52,
-                          height: 52,
-                          // The path is stable per game, so the cache would
-                          // keep showing the previous icon after a change.
-                          key: ValueKey('${module.key}-${File(iconPath).lastModifiedSync()}'),
-                          errorBuilder: (_, _, _) => Center(
-                            child: Text(
-                              module.shortLabel,
-                              style: const TextStyle(fontSize: 12),
+                    // Game icons come from GameBanana at 32x32 and there is no
+                    // bigger variant, so they are drawn near their native size
+                    // with the label underneath. Stretching them over the tile
+                    // turned them to mush, and the banner is not the icon.
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.file(
+                            File(iconPath),
+                            width: 30,
+                            height: 30,
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.medium,
+                            // The path is stable per game, so the cache would
+                            // keep showing the previous icon after a change.
+                            key: ValueKey(
+                              '${module.key}-${File(iconPath).lastModifiedSync()}',
+                            ),
+                            errorBuilder: (_, _, _) =>
+                                const SizedBox(width: 30, height: 30),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            module.shortLabel,
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                              color: isActive ? Colors.white : Colors.grey[500],
                             ),
                           ),
-                        ),
+                        ],
                       ),
               ),
               if (isFavorite)

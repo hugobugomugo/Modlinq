@@ -53,6 +53,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   String _sort = GameBananaClient.sortNewest;
   int? _categoryId;
   String _query = '';
+  bool _hideAdult = false;
 
   GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
 
@@ -155,6 +156,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           query: _query,
           page: page,
         );
+
+  /// Grid contents after the client-side filters.
+  ///
+  /// GameBanana has no "safe only" server flag, so the 18+ filter runs here on
+  /// the `_bHasContentRatings` marker the API does return.
+  List<GameBananaMod> get _visibleMods =>
+      _hideAdult ? _mods.where((mod) => !mod.isAdult).toList() : _mods;
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +330,12 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
             ),
             const SizedBox(width: 8),
           ],
+          FilterChip(
+            label: const Text('Hide 18+', style: TextStyle(fontSize: 11)),
+            selected: _hideAdult,
+            onSelected: (value) => setState(() => _hideAdult = value),
+          ),
+          const SizedBox(width: 8),
           if (_categories.isNotEmpty) ...[
             const SizedBox(width: 4),
             Container(width: 1, height: 22, color: Colors.grey.withValues(alpha: 0.25)),
@@ -376,10 +390,12 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       );
     }
 
-    if (_mods.isEmpty) {
+    final mods = _visibleMods;
+
+    if (mods.isEmpty) {
       return Center(
         child: Text(
-          'Nothing found',
+          _mods.isEmpty ? 'Nothing found' : 'Everything here is 18+',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       );
@@ -395,9 +411,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         mainAxisSpacing: 12,
       ),
       // One extra cell carries the "loading more" spinner.
-      itemCount: _mods.length + (_hasMore ? 1 : 0),
+      itemCount: mods.length + (_hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index >= _mods.length) {
+        if (index >= mods.length) {
           return const Center(
             child: SizedBox(
               width: 22,
@@ -407,7 +423,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           );
         }
 
-        return _buildCard(_mods[index], isDarkMode);
+        return _buildCard(mods[index], isDarkMode);
       },
     );
   }

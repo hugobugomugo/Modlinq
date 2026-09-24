@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -417,7 +418,11 @@ class UpdateService {
     final staging = Directory(path.join(install.parent.path, '.modlinq-staging'));
     if (await staging.exists()) await staging.delete(recursive: true);
     await staging.create(recursive: true);
-    await extractFileToDisk(zip.path, staging.path);
+    // Unpacking a 50 MB release on the UI isolate froze the window for the
+    // duration; the decoder is synchronous, so it runs elsewhere.
+    final zipPath = zip.path;
+    final stagingPath = staging.path;
+    await Isolate.run(() => extractFileToDisk(zipPath, stagingPath));
     return staging;
   }
 

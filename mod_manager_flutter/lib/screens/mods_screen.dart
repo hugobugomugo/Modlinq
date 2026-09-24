@@ -14,6 +14,7 @@ import '../core/constants.dart';
 import '../models/character_info.dart';
 import '../models/keybind_info.dart';
 import '../services/api_service.dart';
+import '../services/app_log.dart';
 import '../services/archive_formats.dart';
 import '../services/archive_service.dart';
 import '../utils/state_providers.dart';
@@ -224,6 +225,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
   /// Loads the NTE library into the same providers the mod grid reads.
   Future<void> _loadNteMods({bool showLoading = true}) async {
+    final startedAt = DateTime.now();
     setState(() {
       if (showLoading) isLoading = true;
       errorMessage = null;
@@ -271,6 +273,12 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     ref.read(charactersProvider.notifier).setValue(characters);
     ref.read(modsProvider.notifier).setValue(mods);
 
+    AppLog.info(
+      'Loaded ${mods.length} mods for ${ref.read(selectedGameProvider).key} '
+      'in ${DateTime.now().difference(startedAt).inMilliseconds} ms',
+      details: '${_hiddenMods.length} hidden, ${characters.length} groups',
+    );
+
     final selectedIndex = ref.read(selectedCharacterIndexProvider);
     if (selectedIndex >= characters.length) {
       ref.read(selectedCharacterIndexProvider.notifier).setValue(0);
@@ -309,6 +317,12 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     bool showLoading = true,
     CancellationToken? cancelled,
   }) async {
+    final startedAt = DateTime.now();
+    final game = ref.read(selectedGameProvider);
+    AppLog.debug('Loading mods for ${game.key}');
+
+    // Scanning a large library is the most likely thing to block the UI, so
+    // the duration is logged even when nothing goes wrong.
     // NTE stores mods as pak/asi files, so it loads through its own backend.
     if (ref.read(selectedGameProvider).usesPakMods) {
       await _loadNteMods(showLoading: showLoading);
@@ -453,6 +467,12 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         _lastCharactersState = List.from(characters);
         ref.read(charactersProvider.notifier).setValue(characters);
       }
+
+      AppLog.info(
+        'Loaded ${allMods.length} mods for $gameStr in '
+        '${DateTime.now().difference(startedAt).inMilliseconds} ms',
+        details: '${_hiddenMods.length} hidden, ${characters.length} groups',
+      );
 
       if (previousSelectedId != null && characters.isNotEmpty) {
         final newIndex = characters.indexWhere(

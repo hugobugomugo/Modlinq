@@ -8,6 +8,7 @@ import '../games/deadlock/deadlock_manager.dart';
 import '../models/game_type.dart';
 import '../utils/path_helper.dart';
 import 'api_service.dart';
+import 'app_log.dart';
 import 'archive_service.dart';
 import 'config_service.dart';
 import 'gamebanana_client.dart';
@@ -31,6 +32,9 @@ class MarketplaceInstaller {
     MarketplaceJob job,
     void Function(double progress) onProgress,
   ) async {
+    final started = DateTime.now();
+    AppLog.info('Installing "${job.mod.name}" for ${job.gameKey}');
+
     final archive = await _download(job.file, onProgress);
 
     if (!await _checksumMatches(archive, job.file)) {
@@ -45,6 +49,11 @@ class MarketplaceInstaller {
 
     await config.setMarketplaceInstalled(job.gameKey, job.mod.id, true);
     await _savePreview(job.mod, installedName, game, config);
+
+    AppLog.info(
+      'Installed "$installedName" in '
+      '${DateTime.now().difference(started).inMilliseconds} ms',
+    );
 
     return installedName;
   }

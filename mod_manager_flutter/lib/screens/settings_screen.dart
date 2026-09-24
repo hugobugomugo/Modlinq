@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,6 +14,8 @@ import '../utils/game_roster.dart';
 import '../games/deadlock/deadlock_detection.dart';
 import '../games/game_registry.dart';
 import '../games/deadlock/deadlock_manager.dart';
+import '../services/app_log.dart';
+import '../services/platform_service_factory.dart';
 import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
 import '../services/nte_loader_installer.dart';
@@ -514,6 +519,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               ),
                               const SizedBox(height: 20),
                               _buildUpdateCheck(isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Diagnostics'),
+                              const SizedBox(height: 16),
+                              _buildDiagnostics(isDarkMode),
                               const SizedBox(height: 24),
                               _buildSectionTitle('Hidden games'),
                               const SizedBox(height: 16),
@@ -1445,6 +1454,116 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     await configService.setModHidden(game.key, modName, false);
 
     await _loadHiddenMods();
+  }
+
+  /// Log file, its tail, and a way to hand both to someone who can read them.
+  ///
+  /// Freezes and failed installs used to leave nothing behind but a memory of
+  /// what the window looked like. This is the part that turns that into a
+  /// timestamped file.
+  Widget _buildDiagnostics(bool isDarkMode) {
+    final entries = AppLog.recent(limit: 200);
+    final problems = entries
+        .where((e) => e.level == LogLevel.warn || e.level == LogLevel.error)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Log file',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isDarkMode ? Colors.grey[200] : Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(
+            AppLog.filePath,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${entries.length} entries this session'
+            '${problems > 0 ? ', $problems warning or error' : ''}. '
+            'A stall of the interface is recorded with the number of '
+            'milliseconds it lasted.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _copyDiagnostics,
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                label: const Text('Copy last 200 lines'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _openLogFolder,
+                icon: const Icon(Icons.folder_open_rounded, size: 16),
+                label: const Text('Open log folder'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  AppLog.info('Diagnostics: test entry from settings');
+                  setState(() {});
+                },
+                icon: const Icon(Icons.bug_report_rounded, size: 16),
+                label: const Text('Write test entry'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyDiagnostics() async {
+    final header = [
+      'Modlinq $appVersion',
+      'platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+      'log: ${AppLog.filePath}',
+      '',
+    ].join('\n');
+
+    await Clipboard.setData(
+      ClipboardData(text: header + AppLog.recentAsText()),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Diagnostics copied to the clipboard')),
+    );
+  }
+
+  Future<void> _openLogFolder() async {
+    final opened = await PlatformServiceFactory.getInstance()
+        .openUrlInBrowser(AppLog.directoryPath);
+
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLog.directoryPath)),
+    );
   }
 
   /// Games the user took out of the rail. Without this list they would be

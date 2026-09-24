@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,7 +18,9 @@ import 'core/app_version.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/components/game_rail_sidebar.dart';
 import 'screens/components/update_dialog.dart';
+import 'services/app_log.dart';
 import 'services/nte_loader_task.dart';
+import 'services/ui_stall_watchdog.dart';
 
 Future<void> main(List<String> args) async {
   // Elevated helper: UAC re-runs this same executable so loader files can be
@@ -27,6 +31,31 @@ Future<void> main(List<String> args) async {
     await NteLoaderTaskRunner.runFromTaskFile(loaderTaskFile);
     exit(0);
   }
+
+  AppLog.init();
+  AppLog.echoToConsole = kDebugMode;
+  AppLog.info(
+    'Modlinq $appVersion starting',
+    details: 'platform: ${Platform.operatingSystem} '
+        '${Platform.operatingSystemVersion}\nlog: ${AppLog.filePath}',
+  );
+
+  // Everything the framework reports goes to the same file the user can hand
+  // over. A stack trace that only ever reached a terminal helps nobody who
+  // installed a packaged build.
+  FlutterError.onError = (details) {
+    AppLog.error(
+      details.summary.toString(),
+      error: details.exception,
+      stack: details.stack,
+    );
+    FlutterError.presentError(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLog.error('Uncaught platform error', error: error, stack: stack);
+    return true;
+  };
 
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -52,7 +81,14 @@ Future<void> main(List<String> args) async {
     await windowManager.focus();
   });
 
-  runApp(const ProviderScope(child: MyApp()));
+  // Ticks on the UI isolate: a late tick is proof the thread was blocked, and
+  // by how long. That is the difference between "it froze once" and a number.
+  UiStallWatchdog().start();
+
+  runZonedGuarded(
+    () => runApp(const ProviderScope(child: MyApp())),
+    (error, stack) => AppLog.error('Uncaught error', error: error, stack: stack),
+  );
 }
 
 class MyApp extends ConsumerStatefulWidget {

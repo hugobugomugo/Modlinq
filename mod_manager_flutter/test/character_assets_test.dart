@@ -13,8 +13,7 @@ void main() {
   // Skips mean artwork that does not exist in the repo yet, not a rule that
   // does not apply. Drop the entry once the files land.
   const missingArtwork = {
-    GameType.zzz: 'no artwork yet for the 3.1 additions sigrid and '
-        'starlightbilly',
+    GameType.zzz: 'no artwork yet for sigrid, starlightbilly, claret, roxy',
     GameType.wutheringWaves: 'assets/characters_ww is empty, no portraits yet',
   };
 

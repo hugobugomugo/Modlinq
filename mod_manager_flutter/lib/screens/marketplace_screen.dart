@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../games/game_module.dart';
 import '../games/game_registry.dart';
 import '../services/api_service.dart';
+import '../services/app_log.dart';
 import '../services/archive_service.dart';
 import '../services/gamebanana_client.dart';
 import '../services/marketplace_queue.dart';
@@ -98,6 +99,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       _page = 1;
     });
 
+    final started = DateTime.now();
     try {
       final config = await ApiService.getConfigService();
       final page = await _fetchPage(1);
@@ -115,7 +117,15 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         _isConfigured = _game.isConfigured(config);
         _isLoading = false;
       });
-    } catch (e) {
+
+      AppLog.info(
+        'Marketplace loaded ${page.mods.length} of ${page.totalCount} mods '
+        'for ${_game.key} in ${DateTime.now().difference(started).inMilliseconds} ms',
+        details: 'sort: $_sort, category: ${_categoryId ?? 'all'}, '
+            'query: ${_query.isEmpty ? '-' : _query}',
+      );
+    } catch (e, stack) {
+      AppLog.error('Marketplace load failed', error: e, stack: stack);
       if (!mounted) return;
       setState(() {
         _error = '$e';
@@ -143,7 +153,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         _hasMore = page.hasMore;
         _isLoadingMore = false;
       });
-    } catch (_) {
+    } catch (e, stack) {
+      AppLog.warn('Marketplace next page failed', details: '$e\n$stack');
       if (mounted) setState(() => _isLoadingMore = false);
     }
   }
@@ -726,6 +737,12 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
       final file = installable.first;
       if (!file.isScanClean && !await _confirmFlaggedFile(file)) return;
+
+      AppLog.info(
+        'Queued "${mod.name}" (${mod.id}) for ${_game.key}',
+        details: 'file: ${file.name}, ${file.size} bytes, '
+            'scan: ${file.analysisResult ?? 'unknown'}',
+      );
 
       _queue.enqueue(mod, file, _game.key);
       if (mounted) setState(() {});

@@ -26,6 +26,7 @@ const List<CharacterData> zzzCharactersData = [
   CharacterData(id: 'burnice', displayName: 'Burnice', assetName: 'burnice'),
   CharacterData(id: 'caesar', displayName: 'Caesar', assetName: 'caesar'),
   CharacterData(id: 'cissia', displayName: 'Cissia', assetName: 'cissia'),
+  CharacterData(id: 'claret', displayName: 'Claret', assetName: 'claret'),
   CharacterData(id: 'corin', displayName: 'Corin', assetName: 'corin'),
   CharacterData(id: 'dialyn', displayName: 'Dialyn', assetName: 'dialyn'),
   CharacterData(id: 'ellen', displayName: 'Ellen', assetName: 'ellen'),
@@ -55,6 +56,7 @@ const List<CharacterData> zzzCharactersData = [
   CharacterData(id: 'quinqiy', displayName: 'Qingyi', assetName: 'quinqiy'),
   CharacterData(id: 'remielle', displayName: 'Remielle', assetName: 'remielle'),
   CharacterData(id: 'rina', displayName: 'Rina', assetName: 'rina'),
+  CharacterData(id: 'roxy', displayName: 'Roxy', assetName: 'roxy'),
   CharacterData(id: 'seed', displayName: 'Seed', assetName: 'seed'),
   CharacterData(id: 'seth', displayName: 'Seth', assetName: 'seth'),
   CharacterData(id: 'sigrid', displayName: 'Sigrid', assetName: 'sigrid'),
@@ -80,9 +82,9 @@ const List<CharacterData> zzzCharactersData = [
 @deprecated
 const List<String> zzzCharacters = [
   'alice', 'anby', 'anton', 'aria', 'astra', 'banyue', 'belle', 'ben', 'billy', 'burnice', 'caesar',
-  'cissia', 'corin', 'dialyn', 'ellen', 'evelyn', 'grace', 'harumasa', 'hugo', 'jane', 'jufufu',
+  'cissia', 'claret', 'corin', 'dialyn', 'ellen', 'evelyn', 'grace', 'harumasa', 'hugo', 'jane', 'jufufu',
   'koleda', 'lighter', 'lucia', 'lucy', 'lycaon', 'manato', 'miyabi', 'nangongyu', 'nekomata', 'nicole',
-  'norma', 'orphie', 'panyinhu', 'piper', 'promeia', 'pulchra', 'pyrois', 'quinqiy', 'remielle', 'rina', 'seed', 'seth', 'sigrid',
+  'norma', 'orphie', 'panyinhu', 'piper', 'promeia', 'pulchra', 'pyrois', 'quinqiy', 'remielle', 'rina', 'roxy', 'seed', 'seth', 'sigrid',
   'solder0anby', 'solder11', 'soukaku', 'starlightbilly', 'sunna', 'trigger', 'velina', 'vivian', 'wise',
   'yanagi', 'yeshunguang', 'yidhari', 'yixuan', 'yuzuha', 'zhao', 'zhuyuan',
 ];

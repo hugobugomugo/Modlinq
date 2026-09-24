@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as path;
 
@@ -107,36 +108,19 @@ class ArchiveService {
     return 'archive format not supported';
   }
 
+  /// Unpacks a zip on a background isolate.
+  ///
+  /// `ZipDecoder.decodeBytes` is synchronous CPU work over the whole archive.
+  /// Running it on the UI isolate froze the window for as long as it took —
+  /// seconds for the 200 MB packs the marketplace hands over.
   static Future<bool> _extractZip(File archiveFile, Directory destination) async {
+    final archivePath = archiveFile.path;
+    final destinationPath = destination.path;
+
     try {
-      print('ArchiveService: reading zip file...');
-      final bytes = await archiveFile.readAsBytes();
-      print('ArchiveService: read ${bytes.length} bytes');
-
-      print('ArchiveService: decoding zip...');
-      final archive = ZipDecoder().decodeBytes(bytes, verify: true);
-      print('ArchiveService: zip contains ${archive.length} files');
-
-      int extracted = 0;
-      for (final file in archive) {
-        final sanitizedPath = _sanitizeArchivePath(destination.path, file.name);
-        if (sanitizedPath == null) {
-          print('ArchiveService: skipped unsafe path: ${file.name}');
-          continue;
-        }
-
-        if (file.isFile) {
-          final outFile = File(sanitizedPath);
-          await outFile.create(recursive: true);
-          await outFile.writeAsBytes(file.content as List<int>);
-          extracted++;
-        } else {
-          final dir = Directory(sanitizedPath);
-          if (!await dir.exists()) {
-            await dir.create(recursive: true);
-          }
-        }
-      }
+      final extracted = await Isolate.run(
+        () => extractZipSync(archivePath, destinationPath),
+      );
 
       print('ArchiveService: zip extracted, files: $extracted');
       return true;
@@ -144,6 +128,32 @@ class ArchiveService {
       print('ArchiveService: zip extraction failed: $e');
       return false;
     }
+  }
+
+  /// The actual unpacking, free of anything isolate-unfriendly.
+  ///
+  /// Returns how many files were written. Entries whose path would escape the
+  /// destination are skipped rather than trusted.
+  static int extractZipSync(String archivePath, String destinationPath) {
+    final bytes = File(archivePath).readAsBytesSync();
+    final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+
+    var extracted = 0;
+    for (final file in archive) {
+      final sanitizedPath = _sanitizeArchivePath(destinationPath, file.name);
+      if (sanitizedPath == null) continue;
+
+      if (file.isFile) {
+        File(sanitizedPath)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(file.content as List<int>);
+        extracted++;
+      } else {
+        Directory(sanitizedPath).createSync(recursive: true);
+      }
+    }
+
+    return extracted;
   }
 
   /// Unpacks tar and the compressed tarballs, none of which need a tool.
@@ -154,8 +164,15 @@ class ArchiveService {
     File archiveFile,
     Directory destination,
   ) async {
+    final archivePath = archiveFile.path;
+    final destinationPath = destination.path;
+
     try {
-      await extractFileToDisk(archiveFile.path, destination.path);
+      // Same reason as the zip path: the codecs are synchronous, so they run
+      // where a stalled thread costs nothing.
+      await Isolate.run(
+        () => extractFileToDisk(archivePath, destinationPath),
+      );
       print('ArchiveService: tar extraction ok');
       return const _ExtractionOutcome(true);
     } catch (e) {

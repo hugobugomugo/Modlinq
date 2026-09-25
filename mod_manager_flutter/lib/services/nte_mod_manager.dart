@@ -6,6 +6,7 @@ import '../models/game_type.dart';
 import '../models/nte_mod.dart';
 import '../utils/nte_characters.dart';
 import '../utils/path_helper.dart';
+import 'app_log.dart';
 import 'config_service.dart';
 import 'nte_loader_service.dart';
 import 'nte_mod_installer.dart';
@@ -118,12 +119,23 @@ class NteModManager implements FileModManager {
       await config.setNteEnabledMods(adopted.toList());
     }
 
+    // Checked even when nothing has to be installed: a game patch wipes the
+    // loader out of Binaries/Win64 and leaves the mods untouched, so "nothing
+    // missing" is exactly the case where the loader is silently gone.
+    final repaired = await _repairLoaderIfNeeded();
+
     final missing = mods.where((mod) => adopted.contains(mod.name) && !mod.enabled);
-    if (missing.isEmpty) return const NteApplyResult();
+    if (missing.isEmpty) {
+      return NteApplyResult(loaderRepaired: repaired);
+    }
 
     final loaderError = await _ensureLoader();
 
-    return _withLoaderError(installer.apply(missing, adopted), loaderError);
+    return _withLoaderError(
+      installer.apply(missing, adopted),
+      loaderError,
+      loaderRepaired: repaired,
+    );
   }
 
   /// Key the loader reports failures under, so it reads as a mod row would.
@@ -148,13 +160,46 @@ class NteModManager implements FileModManager {
     }
   }
 
-  NteApplyResult _withLoaderError(NteApplyResult result, String? error) {
-    if (error == null) return result;
+  /// Puts the loader back when it went missing, and says whether it had to.
+  Future<bool> _repairLoaderIfNeeded() async {
+    final service = loader;
+    if (service == null || service.status.valid) return false;
+
+    try {
+      final status = await service.install();
+      AppLog.warn(
+        'Mod loader was missing and has been reinstalled',
+        details: 'A game update replaces Binaries/Win64, which takes the '
+            'loader with it. Mods stay installed but stop loading.\n'
+            'loader dir: ${status.loaderDir}',
+      );
+
+      return status.valid;
+    } catch (e, stack) {
+      AppLog.error('Mod loader repair failed', error: e, stack: stack);
+      return false;
+    }
+  }
+
+  NteApplyResult _withLoaderError(
+    NteApplyResult result,
+    String? error, {
+    bool loaderRepaired = false,
+  }) {
+    if (error == null) {
+      return NteApplyResult(
+        applied: result.applied,
+        locked: result.locked,
+        errors: result.errors,
+        loaderRepaired: loaderRepaired,
+      );
+    }
 
     return NteApplyResult(
       applied: result.applied,
       locked: result.locked,
       errors: {...result.errors, loaderResultKey: error},
+      loaderRepaired: loaderRepaired,
     );
   }
 

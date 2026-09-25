@@ -96,6 +96,25 @@ void main() {
     expect(DeadlockGameinfo(gameRoot).isPatched, isTrue);
   });
 
+  test('a gameinfo.gi a patch reset is repaired on the next load', () async {
+    addLibraryMod('A', ['a_dir.vpk']);
+    await manager.setEnabled('A', true);
+
+    File(gameinfoPath()).writeAsStringSync(_vanillaGameinfo);
+
+    final result = await manager.syncWithIntent();
+
+    expect(DeadlockGameinfo(gameRoot).isPatched, isTrue);
+    expect(result.loaderRepaired, isTrue);
+  });
+
+  test('an intact gameinfo.gi is not reported as repaired', () async {
+    addLibraryMod('A', ['a_dir.vpk']);
+    await manager.setEnabled('A', true);
+
+    expect((await manager.syncWithIntent()).loaderRepaired, isFalse);
+  });
+
   test('repairs can be triggered without touching any mod', () async {
     addLibraryMod('A', ['a_dir.vpk']);
     await manager.setEnabled('A', true);

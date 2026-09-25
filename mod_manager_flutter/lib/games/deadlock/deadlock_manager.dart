@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../../models/game_type.dart';
 import '../../models/nte_mod.dart';
+import '../../services/app_log.dart';
 import '../../services/config_service.dart';
 import '../../services/nte_mod_library.dart';
 import '../../services/nte_mods_adapter.dart';
@@ -97,15 +98,19 @@ class DeadlockModManager implements FileModManager {
   /// folder wiped by an update. Never uninstalls, same rule as NTE.
   @override
   Future<NteApplyResult> syncWithIntent() async {
+    // Checked first and unconditionally: a Deadlock patch ships a fresh
+    // gameinfo.gi without the addons path, which leaves every vpk in place and
+    // none of them loading.
+    final repaired = await repairGameinfo();
+
     final missing = listMods()
         .where((mod) => installer.slotOf(mod.name) != null && !mod.enabled)
         .toList();
-    if (missing.isEmpty) return const NteApplyResult();
+    if (missing.isEmpty) return NteApplyResult(loaderRepaired: repaired);
 
     final applied = <String>[];
     final errors = <String, String>{};
 
-    gameinfo.ensurePatched();
     for (final mod in missing) {
       try {
         await installer.enable(mod.name, mod.dirPath);
@@ -115,7 +120,11 @@ class DeadlockModManager implements FileModManager {
       }
     }
 
-    return NteApplyResult(applied: applied, errors: errors);
+    return NteApplyResult(
+      applied: applied,
+      errors: errors,
+      loaderRepaired: repaired,
+    );
   }
 
   /// Copies folders and archives into the library.
@@ -196,7 +205,20 @@ class DeadlockModManager implements FileModManager {
   ///
   /// Returns whether anything had to be repaired, so the UI can say why the
   /// mods were gone.
-  Future<bool> repairGameinfo() async => gameinfo.ensurePatched();
+  Future<bool> repairGameinfo() async {
+    if (!gameinfo.exists) return false;
+
+    final repaired = gameinfo.ensurePatched();
+    if (repaired) {
+      AppLog.warn(
+        'gameinfo.gi lost its addons search path and has been repaired',
+        details: 'A Deadlock update overwrites the file, which stops every '
+            'installed mod from loading.\nfile: ${gameinfo.path}',
+      );
+    }
+
+    return repaired;
+  }
 
   /// Moves a mod to another load-order slot, swapping with whoever is there.
   Future<void> setSlot(String modName, int slot) =>

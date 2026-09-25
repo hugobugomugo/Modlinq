@@ -108,6 +108,32 @@ void main() {
     expect(loaderService.status.valid, isTrue);
   });
 
+  test('a loader a game update wiped is restored on the next load', () async {
+    addMod('Skin');
+    await manager.setEnabled('Skin', true);
+
+    // What an NTE patch does: it replaces Binaries/Win64, so the loader is
+    // gone while every mod file is still exactly where it was.
+    loaderService.installer.uninstall();
+    expect(loaderService.status.valid, isFalse);
+    expect(manager.listMods().single.enabled, isTrue);
+
+    final result = await manager.syncWithIntent();
+
+    expect(loaderService.status.valid, isTrue);
+    expect(result.loaderRepaired, isTrue);
+    expect(result.errors, isEmpty);
+  });
+
+  test('a healthy loader is not reported as repaired', () async {
+    addMod('Skin');
+    await manager.setEnabled('Skin', true);
+
+    final result = await manager.syncWithIntent();
+
+    expect(result.loaderRepaired, isFalse);
+  });
+
   test('a loader failure is reported without blocking the mod', () async {
     addMod('Skin');
     Directory(p.join(tmp.path, 'assets')).deleteSync(recursive: true);

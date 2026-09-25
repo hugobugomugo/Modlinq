@@ -293,6 +293,13 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     if (sync.locked.isNotEmpty) {
       _showSnack(loc.t('nte.mods.locked'), isError: true);
     }
+
+    // A game patch takes the loader with it and leaves the mods in place, so
+    // the user sees a vanilla game while this app still says "enabled". Worth
+    // saying out loud once it has been put back.
+    if (sync.loaderRepaired) {
+      _showSnack('Mod loader was missing after a game update and was restored');
+    }
   }
 
   void _showSnack(String message, {bool isError = false}) {

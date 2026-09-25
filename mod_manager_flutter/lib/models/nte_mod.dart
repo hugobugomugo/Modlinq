@@ -67,10 +67,18 @@ class NteApplyResult {
   /// Failures that are not lock-related, keyed by mod name.
   final Map<String, String> errors;
 
+  /// The loader was missing and had to be put back.
+  ///
+  /// A game patch replaces the folder the loader lives in, which leaves every
+  /// mod installed and none of them loading. Worth telling the user about,
+  /// because from inside the game it looks like the mods vanished.
+  final bool loaderRepaired;
+
   const NteApplyResult({
     this.applied = const [],
     this.locked = const [],
     this.errors = const {},
+    this.loaderRepaired = false,
   });
 
   bool get hasFailures => locked.isNotEmpty || errors.isNotEmpty;

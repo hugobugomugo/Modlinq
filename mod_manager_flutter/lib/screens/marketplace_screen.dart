@@ -45,7 +45,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   String _query = '';
   bool _hideAdult = false;
 
-  MarketplaceQueue get _queue => ref.read(marketplaceQueueProvider);
+  /// Resolved once, while the widget is still mounted: `ref` is unusable
+  /// from dispose(), and the listener has to come off there.
+  late final MarketplaceQueue _queue = ref.read(marketplaceQueueProvider);
 
   GameModule get _game => GameRegistry.of(ref.read(selectedGameProvider));
 

@@ -8,6 +8,8 @@ import '../utils/nte_characters.dart';
 import '../utils/path_helper.dart';
 import 'app_log.dart';
 import 'config_service.dart';
+import 'game_process_watch.dart';
+import 'nte_game_detection.dart';
 import 'nte_loader_service.dart';
 import 'nte_mod_installer.dart';
 import 'nte_mods_adapter.dart';
@@ -27,12 +29,17 @@ class NteModManager implements FileModManager {
   /// configured, which is also how tests opt out of touching a loader.
   final NteLoaderService? loader;
 
+  /// Asks whether the game is up. Only consulted when something changed, so a
+  /// plain reload never pays for a process listing.
+  final GameProcessWatch processes;
+
   NteModManager({
     required this.library,
     required this.installer,
     required this.config,
     this.loader,
-  });
+    GameProcessWatch? processes,
+  }) : processes = processes ?? GameProcessWatch();
 
   /// Builds a manager from stored config. Returns null when no valid game
   /// folder is configured yet.
@@ -119,6 +126,11 @@ class NteModManager implements FileModManager {
       await config.setNteEnabledMods(adopted.toList());
     }
 
+    // Logged on every load, not only when something is wrong: "mods are on but
+    // the game is vanilla" reports are undecidable without knowing whether the
+    // loader was there, and the user only sends the log after the fact.
+    _logLoaderStatus();
+
     // Checked even when nothing has to be installed: a game patch wipes the
     // loader out of Binaries/Win64 and leaves the mods untouched, so "nothing
     // missing" is exactly the case where the loader is silently gone.
@@ -126,16 +138,63 @@ class NteModManager implements FileModManager {
 
     final missing = mods.where((mod) => adopted.contains(mod.name) && !mod.enabled);
     if (missing.isEmpty) {
-      return NteApplyResult(loaderRepaired: repaired);
+      return NteApplyResult(
+        loaderRepaired: repaired,
+        gameRunning: repaired ? await _isGameRunning() : false,
+      );
     }
 
     final loaderError = await _ensureLoader();
-
-    return _withLoaderError(
+    final applied = _withLoaderError(
       installer.apply(missing, adopted),
       loaderError,
       loaderRepaired: repaired,
     );
+
+    // Anything that reached the game folder just now is invisible to a session
+    // that is already running, and locked files are the same story from the
+    // other side.
+    final changed = repaired || applied.applied.isNotEmpty || applied.hasFailures;
+
+    return applied.copyWith(
+      gameRunning: changed ? await _isGameRunning() : false,
+    );
+  }
+
+  /// Records what the loader looks like right now, so a user-sent log answers
+  /// "were the mods inert?" without a second round trip.
+  void _logLoaderStatus() {
+    final service = loader;
+    if (service == null) {
+      AppLog.debug('NTE loader status', details: 'no valid game folder configured');
+      return;
+    }
+
+    final status = service.status;
+    AppLog.debug(
+      'NTE loader status: ${status.valid ? 'ok' : 'INCOMPLETE'}',
+      details: 'dir: ${status.loaderDir}\n'
+          'loader.asi: ${status.asiFound}, cutils: ${status.cutilsFound}, '
+          'proxy: ${status.proxyFound} ${status.proxyNames.join(', ')}\n'
+          'missing: ${status.missingFiles.isEmpty ? '-' : status.missingFiles.join(', ')}',
+    );
+  }
+
+  /// Whether the configured edition's game process is up.
+  Future<bool> _isGameRunning() async {
+    final exe = loader?.edition.gameExe;
+    if (exe == null) return false;
+
+    final running = await processes.isRunning(exe);
+    if (running) {
+      AppLog.warn(
+        'Game was running during a mod apply',
+        details: '$exe is up. The loader is mapped at process start, so '
+            'changes made now only take effect after restarting the game.',
+      );
+    }
+
+    return running;
   }
 
   /// Key the loader reports failures under, so it reads as a mod row would.

@@ -297,8 +297,19 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     // A game patch takes the loader with it and leaves the mods in place, so
     // the user sees a vanilla game while this app still says "enabled". Worth
     // saying out loud once it has been put back.
+    // The loader is mapped at game start, so a repair done now is inert until
+    // the next launch. Saying only "restored" would send the user straight
+    // back into a vanilla game.
     if (sync.loaderRepaired) {
-      _showSnack('Mod loader was missing after a game update and was restored');
+      _showSnack(
+        sync.gameRunning
+            ? 'Mod loader was missing and was restored — restart the game for '
+                  'mods to load'
+            : 'Mod loader was missing after a game update and was restored',
+      );
+    } else if (sync.gameRunning && sync.applied.isNotEmpty) {
+      _showSnack('Mods changed while the game is running — restart the game '
+          'for them to load');
     }
   }
 

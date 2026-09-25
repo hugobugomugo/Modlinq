@@ -15,6 +15,16 @@ extension NteEditionX on NteEdition {
     NteEdition.unknown => 'unknown',
   };
 
+  /// The running game process for this edition. Not the launcher: the
+  /// launcher exits once the game is up, so it says nothing about whether a
+  /// loader written right now can still be picked up.
+  String? get gameExe => switch (this) {
+    NteEdition.global => 'NTEGlobalGame.exe',
+    NteEdition.cn => 'NTEGame.exe',
+    NteEdition.tw => 'NTETWGame.exe',
+    NteEdition.unknown => null,
+  };
+
   /// Launcher executable that starts this edition, relative to the game root.
   String? get launcherExe => switch (this) {
     NteEdition.global => 'NTEGlobalLauncher.exe',

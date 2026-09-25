@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:modlinq/services/bundled_files.dart';
 import 'package:modlinq/services/config_service.dart';
+import 'package:modlinq/services/game_process_watch.dart';
 import 'package:modlinq/services/nte_game_detection.dart';
 import 'package:modlinq/services/nte_loader_service.dart';
 import 'package:modlinq/services/nte_mod_installer.dart';
@@ -26,7 +27,11 @@ void main() {
   late NteModManager manager;
   late NteLoaderService loaderService;
 
+  /// Flipped by the tests that care whether the game is up.
+  late bool gameUp;
+
   setUp(() async {
+    gameUp = false;
     SharedPreferences.setMockInitialValues({});
     tmp = Directory.systemTemp.createTempSync('nte_auto_loader_');
     gameRoot = p.join(tmp.path, 'game');
@@ -51,6 +56,15 @@ void main() {
         configDirectory: tmp.path,
       ),
       loader: loaderService,
+      processes: GameProcessWatch(
+        supported: true,
+        list: (exe) async => ProcessResult(
+          0,
+          0,
+          gameUp ? '$exe 1234 Console' : 'INFO: No tasks are running.',
+          '',
+        ),
+      ),
     );
   });
 
@@ -123,6 +137,44 @@ void main() {
     expect(loaderService.status.valid, isTrue);
     expect(result.loaderRepaired, isTrue);
     expect(result.errors, isEmpty);
+  });
+
+  test('a repair while the game is running is flagged for a restart', () async {
+    addMod('Skin');
+    await manager.setEnabled('Skin', true);
+    loaderService.installer.uninstall();
+    gameUp = true;
+
+    final result = await manager.syncWithIntent();
+
+    expect(result.loaderRepaired, isTrue);
+    expect(result.gameRunning, isTrue);
+  });
+
+  test('a running game is not reported when nothing changed', () async {
+    addMod('Skin');
+    await manager.setEnabled('Skin', true);
+    gameUp = true;
+
+    final result = await manager.syncWithIntent();
+
+    // Nothing was written, so there is nothing a restart would pick up.
+    expect(result.loaderRepaired, isFalse);
+    expect(result.gameRunning, isFalse);
+  });
+
+  test('restoring a mod while the game is up is flagged for a restart', () async {
+    addMod('Skin');
+    await manager.setEnabled('Skin', true);
+    Directory(
+      p.join(manager.installer.pakTarget, 'Skin'),
+    ).deleteSync(recursive: true);
+    gameUp = true;
+
+    final result = await manager.syncWithIntent();
+
+    expect(result.applied, ['Skin']);
+    expect(result.gameRunning, isTrue);
   });
 
   test('a healthy loader is not reported as repaired', () async {

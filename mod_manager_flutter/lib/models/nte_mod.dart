@@ -74,12 +74,29 @@ class NteApplyResult {
   /// because from inside the game it looks like the mods vanished.
   final bool loaderRepaired;
 
+  /// The game was running while this apply ran.
+  ///
+  /// The loader is mapped at process start and mod files are read from disk at
+  /// load time, so changes made now reach the game only after a restart. Only
+  /// looked up when something actually changed or failed.
+  final bool gameRunning;
+
   const NteApplyResult({
     this.applied = const [],
     this.locked = const [],
     this.errors = const {},
     this.loaderRepaired = false,
+    this.gameRunning = false,
   });
 
   bool get hasFailures => locked.isNotEmpty || errors.isNotEmpty;
+
+  NteApplyResult copyWith({bool? loaderRepaired, bool? gameRunning}) =>
+      NteApplyResult(
+        applied: applied,
+        locked: locked,
+        errors: errors,
+        loaderRepaired: loaderRepaired ?? this.loaderRepaired,
+        gameRunning: gameRunning ?? this.gameRunning,
+      );
 }

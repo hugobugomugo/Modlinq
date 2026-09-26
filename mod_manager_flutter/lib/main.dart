@@ -19,6 +19,7 @@ import 'l10n/app_localizations.dart';
 import 'screens/components/game_rail_sidebar.dart';
 import 'screens/components/update_dialog.dart';
 import 'services/app_log.dart';
+import 'services/elevated_file_copy.dart';
 import 'services/nte_loader_task.dart';
 import 'services/ui_stall_watchdog.dart';
 
@@ -29,6 +30,14 @@ Future<void> main(List<String> args) async {
   final loaderTaskFile = NteLoaderTaskRunner.taskFileFromArgs(args);
   if (loaderTaskFile != null) {
     await NteLoaderTaskRunner.runFromTaskFile(loaderTaskFile);
+    exit(0);
+  }
+
+  // Same idea for a repair: the app's own folder is usually under Program
+  // Files, so putting a deleted file back needs administrator rights.
+  final copyTaskFile = ElevatedFileCopy.taskFileFromArgs(args);
+  if (copyTaskFile != null) {
+    await ElevatedFileCopy.runFromTaskFile(copyTaskFile);
     exit(0);
   }
 

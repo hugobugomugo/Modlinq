@@ -284,12 +284,16 @@ class UpdateService {
     return best;
   }
 
-  UpdateInfo? _toUpdateInfo(Map<String, dynamic> json, String current) {
+  UpdateInfo? _toUpdateInfo(
+    Map<String, dynamic> json,
+    String current, {
+    bool requireNewer = true,
+  }) {
     final tag = (json['tag_name'] ?? '') as String;
     if (tag.isEmpty) return null;
 
     final version = tag.startsWith('v') ? tag.substring(1) : tag;
-    if (!isNewer(version, current)) return null;
+    if (requireNewer && !isNewer(version, current)) return null;
 
     final assets = (json['assets'] as List?) ?? const [];
     final suffix = platformAssetSuffix();
@@ -320,6 +324,49 @@ class UpdateService {
       installerName: installer?['name'] as String?,
       installerUrl: installer?['browser_download_url'] as String?,
     );
+  }
+
+  /// Drops a dev suffix: `2.1.8-dev.23` -> `2.1.8`.
+  static String baseVersion(String version) => version.split('-').first;
+
+  /// The release this build came from, prereleases included.
+  ///
+  /// A repair needs the bytes this very build shipped. Reusing the update
+  /// lookup would hand back a newer release and silently upgrade the app
+  /// while the user only asked to have a deleted file put back.
+  Future<UpdateInfo?> findReleaseFor(String version) async {
+    final res = await _client.get(
+      Uri.parse(releasesUrl),
+      headers: const {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'modlinq-updater',
+      },
+    );
+    if (res.statusCode != 200) {
+      throw HttpException('release lookup failed: ${res.statusCode}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return null;
+
+    final wanted = baseVersion(version);
+
+    UpdateInfo? best;
+    for (final entry in decoded.cast<Map<String, dynamic>>()) {
+      if (entry['draft'] == true) continue;
+
+      final candidate = _toUpdateInfo(entry, version, requireNewer: false);
+      if (candidate == null) continue;
+      if (baseVersion(candidate.version) != wanted) continue;
+
+      // Several dev builds can share a base version; the newest carries the
+      // assets a current install was actually built from.
+      if (best == null || isNewer(candidate.version, best.version)) {
+        best = candidate;
+      }
+    }
+
+    return best;
   }
 
   Future<File> downloadAsset(

@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "asset": "assets/nte_bundled/Anticensor/Anticensor.asi",
+      "bytes": 17408,
+      "sha256": "4b83554e51245807b1f3dd2abcd9cc3a137bbd289bc481a7cef351f9618b0f42"
+    },
+    {
+      "asset": "assets/nte_bundled/Hide_UID/Hide_UID_P.pak",
+      "bytes": 339,
+      "sha256": "fd2e994ce4727e10dfc87094cf8abd7213a5e4642bc007074212bfa344e73345"
+    },
+    {
+      "asset": "assets/nte_bundled/Hide_UID/Hide_UID_P.ucas",
+      "bytes": 912,
+      "sha256": "4f097833ad0431301922b99ebb4770e2f4c031158f1f8054d35a3ada08101e26"
+    },
+    {
+      "asset": "assets/nte_bundled/Hide_UID/Hide_UID_P.utoc",
+      "bytes": 381,
+      "sha256": "930544d79fadc9a40993cfb7f56e9adc694ae7468e8d16020ca5d821b0f0ef74"
+    },
+    {
+      "asset": "assets/nte_loader/loader.asi",
+      "bytes": 32923136,
+      "sha256": "0fe665335b3604c4c82220797626d8dfa50e2974a183692795e15cc90f9ba1b5"
+    },
+    {
+      "asset": "assets/nte_loader/loader.dll",
+      "bytes": 3577160,
+      "sha256": "810111a7f6a6cef892877c9f7c4582ccde2d621d119891f700c5309c370508bf"
+    },
+    {
+      "asset": "assets/nte_loader/subloader.dll",
+      "bytes": 10240,
+      "sha256": "6800a0dde3b9b3be39cf014dd5e8f9ae894238f158c65a74ffd094ff311f431e"
+    }
+  ]
+}

@@ -15,6 +15,8 @@ import '../games/deadlock/deadlock_detection.dart';
 import '../games/game_registry.dart';
 import '../games/deadlock/deadlock_manager.dart';
 import '../services/app_log.dart';
+import '../services/integrity_repair.dart';
+import '../services/integrity_service.dart';
 import '../services/platform_service_factory.dart';
 import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
@@ -51,6 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteAnticensor = false;
   bool _nteHideUid = false;
   bool _nteLoaderBusy = false;
+  bool _repairBusy = false;
   bool _checkingUpdate = false;
   Map<String, List<String>> _hiddenModsByGame = const {};
   List<String> _hiddenGames = const [];
@@ -1524,6 +1527,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                 label: const Text('Open log folder'),
               ),
               OutlinedButton.icon(
+                onPressed: _repairBusy ? null : _checkAndRepairInstall,
+                icon: _repairBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.healing_rounded, size: 16),
+                label: const Text('Check & repair installation'),
+              ),
+              OutlinedButton.icon(
                 onPressed: () {
                   AppLog.info('Diagnostics: test entry from settings');
                   setState(() {});
@@ -1536,6 +1550,169 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         ],
       ),
     );
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFDC2626) : null,
+      ),
+    );
+  }
+
+  /// Turns a Flutter asset failure into something a user can act on.
+  ///
+  /// `Unable to load asset: ...` is what antivirus removal looks like from
+  /// inside the app, and it tells the user nothing at all.
+  static String _friendlyError(Object error) {
+    final text = '$error';
+    if (!text.contains('Unable to load asset')) return text;
+
+    return 'A file Modlinq ships is missing, which almost always means '
+        'antivirus removed it. Use "Check & repair installation" under '
+        'Diagnostics.';
+  }
+
+  /// Verifies the files this app shipped and offers to put back what is gone.
+  Future<void> _checkAndRepairInstall() async {
+    setState(() => _repairBusy = true);
+    try {
+      final service = IntegrityService(
+        installDir: UpdateService.installDir(),
+      );
+      final report = await service.check();
+
+      AppLog.info(
+        'Integrity check: ${report.healthy ? 'ok' : '${report.broken.length} damaged'}',
+        details: report.files
+            .map((f) => '${f.state.name.padRight(7)} ${f.assetKey}')
+            .join('\n'),
+      );
+
+      if (!mounted) return;
+      if (report.healthy) {
+        _showSnack('Installation intact, ${report.files.length} files verified');
+        return;
+      }
+
+      final confirmed = await _confirmRepair(report);
+      if (confirmed != true || !mounted) return;
+
+      final result = await IntegrityRepair.forInstalledApp().run(report);
+      final after = await service.check();
+
+      if (!mounted) return;
+      _showSnack(
+        after.healthy
+            ? 'Restored ${result.restored.length} file(s). '
+                  'Add the antivirus exclusion, or they will be removed again.'
+            : 'Repair ran but ${after.broken.length} file(s) are still '
+                  'damaged — antivirus is most likely deleting them again.',
+        isError: !after.healthy,
+      );
+    } catch (e, stack) {
+      AppLog.error('Integrity check or repair failed', error: e, stack: stack);
+      if (mounted) _showSnack('$e', isError: true);
+    } finally {
+      if (mounted) setState(() => _repairBusy = false);
+    }
+  }
+
+  /// Names the likely cause and the exclusion, because repairing without one
+  /// only buys minutes before the same files are removed again.
+  Future<bool?> _confirmRepair(IntegrityReport report) {
+    final mb = (report.brokenBytes / (1024 * 1024)).toStringAsFixed(1);
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Damaged installation'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${report.broken.length} of ${report.files.length} files '
+                  'Modlinq ships are missing or altered. The mod loader is a '
+                  'DLL injector, so antivirus removes it on sight.',
+                ),
+                const SizedBox(height: 12),
+                for (final file in report.broken)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: SelectableText(
+                      '${file.state.name}: ${file.assetKey}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Repair downloads the full release package this build came '
+                  'from and puts only these files back, after checking every '
+                  'byte against this build. Without an exclusion they will be '
+                  'deleted again within minutes.',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Run in PowerShell as administrator first:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  _exclusionCommands(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(
+              ClipboardData(text: _exclusionCommands()),
+            ),
+            child: const Text('Copy commands'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Repair ($mb MB of files)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Exclusions for both places the loader files live.
+  String _exclusionCommands() {
+    final lines = <String>[
+      'Add-MpPreference -ExclusionPath "${UpdateService.installDir().path}"',
+      r'Add-MpPreference -ExclusionPath "$env:APPDATA\modlinq"',
+    ];
+
+    final gamePath = _nteGamePathController.text.trim();
+    if (gamePath.isNotEmpty) {
+      lines.add(
+        'Add-MpPreference -ExclusionPath '
+        '"${p.join(gamePath, 'Client', 'WindowsNoEditor', 'HT', 'Binaries', 'Win64')}"',
+      );
+    }
+
+    return lines.join('\n');
   }
 
   Future<void> _copyDiagnostics() async {
@@ -1804,11 +1981,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     setState(() => _nteLoaderBusy = true);
     try {
       await action(loader);
-    } catch (e) {
+    } catch (e, stack) {
+      // Only ever shown in a snackbar before, so a user report arrived with
+      // an error nobody could look up afterwards.
+      AppLog.error('Loader action failed', error: e, stack: stack);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$e')));
+        ).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _nteLoaderBusy = false);

@@ -47,6 +47,9 @@ if (Test-Path "assets\icon.png") {
     Copy-Item -Path "assets\icon.png" -Destination $assetsPath -Force
 }
 
+# a portable copy has no unins000.exe, so the in-app uninstaller needs this
+Copy-Item -Path "windows_installer\uninstall.ps1" -Destination $portablePath -Force
+
 $readmeContent = @"
 Modlinq $Version (portable)
 
@@ -57,7 +60,9 @@ or enable Developer Mode in Windows settings to allow symlinks without admin.
 
 Requires Windows 10 or newer (x64).
 
-To uninstall, delete this folder. Settings live in %APPDATA%\modlinq.
+To uninstall, use Settings -> Uninstall inside the app: it can also take the
+mod loader and installed mods back out of your games. Otherwise run
+uninstall.ps1, or simply delete this folder. Settings live in %APPDATA%\modlinq.
 
 https://github.com/hugobugomugo/Modlinq
 "@

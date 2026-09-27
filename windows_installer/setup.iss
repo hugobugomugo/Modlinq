@@ -51,6 +51,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\mod_manager_flutter\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\assets\icon.png"; DestDir: "{app}\data\flutter_assets\assets"; Flags: ignoreversion
+; the portable copy has no uninstaller, and a user who lost unins000.exe still needs a way out
+Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
+
+[UninstallDelete]
+; flutter writes next to the exe at runtime, so the folder is never empty
+; just because every installed file is gone
+Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -73,6 +80,33 @@ begin
   end
   else
     Result := True;
+end;
+
+var
+  RemoveUserData: Boolean;
+
+function InitializeUninstall(): Boolean;
+begin
+  RemoveUserData := MsgBox(
+    'Also delete Modlinq settings, logs and cached files?' + #13#10 +
+    'Your imported mod library is kept.' + #13#10 + #13#10 +
+    'Mods already installed into your games are NOT removed here. To take '
+    + 'those out too, cancel and use "Uninstall Modlinq" inside the app first.',
+    mbConfirmation, MB_YESNO) = IDYES;
+  Result := True;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  // Reuses the shipped script rather than repeating its rules here, and runs
+  // while {app} still exists so the script is still on disk.
+  if (CurUninstallStep = usUninstall) and RemoveUserData then
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\uninstall.ps1')
+        + '" -AppDataOnly -RemoveAppData -KeepLibrary',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

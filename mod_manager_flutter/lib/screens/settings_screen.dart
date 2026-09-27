@@ -17,6 +17,8 @@ import '../games/deadlock/deadlock_manager.dart';
 import '../services/app_log.dart';
 import '../services/integrity_repair.dart';
 import '../services/integrity_service.dart';
+import '../services/uninstall_service.dart';
+import '../services/uninstall_wiring.dart';
 import '../services/platform_service_factory.dart';
 import '../services/nte_bundled_mods.dart';
 import '../services/nte_game_detection.dart';
@@ -54,6 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteHideUid = false;
   bool _nteLoaderBusy = false;
   bool _repairBusy = false;
+  bool _uninstallBusy = false;
   bool _checkingUpdate = false;
   Map<String, List<String>> _hiddenModsByGame = const {};
   List<String> _hiddenGames = const [];
@@ -530,6 +533,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                               _buildSectionTitle('Hidden games'),
                               const SizedBox(height: 16),
                               _buildHiddenGames(isDarkMode),
+                              const SizedBox(height: 24),
+                              _buildSectionTitle('Uninstall'),
+                              const SizedBox(height: 16),
+                              _buildUninstall(isDarkMode),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -1550,6 +1557,234 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
         ],
       ),
     );
+  }
+
+  Widget _buildUninstall(bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFDC2626).withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Removes Modlinq and, if you want, everything it put on this '
+            'machine. Each part is asked separately, and nothing is removed '
+            'until you confirm the summary.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _uninstallBusy ? null : _startUninstall,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+              side: const BorderSide(color: Color(0xFFDC2626)),
+            ),
+            icon: _uninstallBusy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Uninstall Modlinq'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Walks the user through the uninstall one step at a time.
+  ///
+  /// Every step is its own question because they are not equally reversible:
+  /// the mod library can be gigabytes of imports, the config is throwaway.
+  Future<void> _startUninstall() async {
+    setState(() => _uninstallBusy = true);
+    try {
+      final config = await ApiService.getConfigService();
+      final service = await UninstallWiring.forApp(config);
+      final plan = service.plan();
+
+      if (plan.tasks.isEmpty) {
+        _showSnack('Nothing found to remove');
+        return;
+      }
+
+      final selected = <UninstallStep>{};
+      for (var i = 0; i < plan.tasks.length; i++) {
+        if (!mounted) return;
+
+        final task = plan.tasks[i];
+        final answer = await _askStep(task, i + 1, plan.tasks.length);
+        if (answer == null) return; // cancelled the whole thing
+        if (answer) selected.add(task.step);
+      }
+
+      if (selected.isEmpty) {
+        _showSnack('Nothing selected, nothing removed');
+        return;
+      }
+
+      if (!mounted) return;
+      final go = await _confirmUninstall(plan, selected);
+      if (go != true) return;
+
+      final outcome = await service.run(plan, selected);
+
+      // The app removal is already running detached and is waiting for this
+      // process to let go of its own folder.
+      if (outcome.completed.contains(UninstallStep.application)) {
+        exit(0);
+      }
+
+      if (!mounted) return;
+      _showSnack(
+        outcome.clean
+            ? 'Removed: ${outcome.completed.map((s) => s.name).join(', ')}'
+            : 'Finished with problems: '
+                  '${outcome.failures.map((f) => '${f.step.name}: ${f.error}').join(' | ')}',
+        isError: !outcome.clean,
+      );
+    } catch (e, stack) {
+      AppLog.error('Uninstall failed', error: e, stack: stack);
+      if (mounted) _showSnack('$e', isError: true);
+    } finally {
+      if (mounted) setState(() => _uninstallBusy = false);
+    }
+  }
+
+  /// True to include the step, false to skip it, null to abandon.
+  Future<bool?> _askStep(UninstallTask task, int index, int total) {
+    return showDialog<bool?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Step $index of $total'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(task.label),
+                if (task.bytes > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatBytes(task.bytes),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+                if (task.paths.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  for (final path in task.paths)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: SelectableText(
+                        path,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: const Text('Cancel everything'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Skip'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Last look before anything is touched, listing only what was chosen.
+  Future<bool?> _confirmUninstall(UninstallPlan plan, Set<UninstallStep> selected) {
+    final chosen = plan.tasks.where((t) => selected.contains(t.step)).toList();
+    final total = chosen.fold(0, (sum, t) => sum + t.bytes);
+
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm uninstall'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('This cannot be undone:'),
+                const SizedBox(height: 10),
+                for (final task in chosen)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text('• ${task.label}'),
+                  ),
+                if (total > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Frees about ${_formatBytes(total)}.',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+                if (selected.contains(UninstallStep.application)) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Modlinq will close as soon as the removal starts.',
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Uninstall'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    }
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / 1024).toStringAsFixed(0)} KB';
   }
 
   void _showSnack(String message, {bool isError = false}) {

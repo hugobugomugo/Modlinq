@@ -9,6 +9,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../core/app_version.dart';
 import '../core/constants.dart';
 import '../services/api_service.dart';
+import '../utils/path_helper.dart';
 import '../utils/state_providers.dart';
 import '../utils/game_roster.dart';
 import '../games/deadlock/deadlock_detection.dart';
@@ -16,6 +17,8 @@ import '../games/game_registry.dart';
 import '../games/deadlock/deadlock_manager.dart';
 import '../services/app_log.dart';
 import '../services/integrity_repair.dart';
+import '../services/defender_exclusions.dart';
+import '../services/diagnostics_report.dart';
 import '../services/integrity_service.dart';
 import '../services/uninstall_service.dart';
 import '../services/uninstall_wiring.dart';
@@ -57,6 +60,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
   bool _nteLoaderBusy = false;
   bool _repairBusy = false;
   bool _uninstallBusy = false;
+  bool _defenderBusy = false;
+  bool _exportBusy = false;
   bool _checkingUpdate = false;
   Map<String, List<String>> _hiddenModsByGame = const {};
   List<String> _hiddenGames = const [];
@@ -1534,6 +1539,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
                 label: const Text('Open log folder'),
               ),
               OutlinedButton.icon(
+                onPressed: _exportBusy ? null : _exportDiagnostics,
+                icon: _exportBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.description_outlined, size: 16),
+                label: const Text('Export full report'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _defenderBusy ? null : _manageDefenderExclusions,
+                icon: _defenderBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.shield_outlined, size: 16),
+                label: const Text('Antivirus exclusions'),
+              ),
+              OutlinedButton.icon(
                 onPressed: _repairBusy ? null : _checkAndRepairInstall,
                 icon: _repairBusy
                     ? const SizedBox(
@@ -1932,23 +1959,206 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     );
   }
 
-  /// Exclusions for both places the loader files live.
-  String _exclusionCommands() {
-    final lines = <String>[
-      'Add-MpPreference -ExclusionPath "${UpdateService.installDir().path}"',
-      r'Add-MpPreference -ExclusionPath "$env:APPDATA\modlinq"',
-    ];
+  /// Writes one file that answers what this install looks like.
+  ///
+  /// A log tail alone has never been enough: the reports that took longest to
+  /// solve were the ones where the config, the game folder and the app's own
+  /// files all had to be asked about one message at a time.
+  Future<void> _exportDiagnostics() async {
+    setState(() => _exportBusy = true);
+    try {
+      final config = await ApiService.getConfigService();
+      final file = await DiagnosticsReport(config: config).writeToLogFolder();
 
-    final gamePath = _nteGamePathController.text.trim();
-    if (gamePath.isNotEmpty) {
-      lines.add(
-        'Add-MpPreference -ExclusionPath '
-        '"${p.join(gamePath, 'Client', 'WindowsNoEditor', 'HT', 'Binaries', 'Win64')}"',
-      );
+      AppLog.info('Diagnostics report written', details: file.path);
+      // Same route the existing button takes, so the report is right there.
+      await _openLogFolder();
+
+      if (mounted) _showSnack('Wrote ${p.basename(file.path)}');
+    } catch (e, stack) {
+      AppLog.error('Diagnostics export failed', error: e, stack: stack);
+      if (mounted) _showSnack('$e', isError: true);
+    } finally {
+      if (mounted) setState(() => _exportBusy = false);
     }
-
-    return lines.join('\n');
   }
+
+  /// Adds or removes the antivirus exclusions the loader needs.
+  ///
+  /// Turning off protection for a folder is a real trade, so the dialog says
+  /// exactly what stops being scanned rather than asking a vague "are you
+  /// sure". The manual commands stay on offer for anyone who would rather
+  /// not let an app touch their antivirus settings.
+  Future<void> _manageDefenderExclusions() async {
+    setState(() => _defenderBusy = true);
+    try {
+      final defender = DefenderExclusions();
+      if (!defender.supported) {
+        _showSnack('Windows Defender exclusions are a Windows feature');
+        return;
+      }
+
+      final paths = _exclusionPaths();
+      final missing = await defender.missing(paths);
+      if (!mounted) return;
+
+      final choice = await _askDefender(paths, missing);
+      if (choice == null || !mounted) return;
+
+      if (choice == _DefenderChoice.add) {
+        if (missing.isEmpty) {
+          _showSnack('All exclusions are already in place');
+          return;
+        }
+        await defender.add(missing);
+        if (mounted) {
+          _showSnack('Added ${missing.length} exclusion(s). Run '
+              '"Check & repair installation" next.');
+        }
+      } else {
+        await defender.remove(paths);
+        if (mounted) {
+          _showSnack('Removed ${paths.length} exclusion(s). Antivirus will '
+              'scan these folders again.');
+        }
+      }
+    } catch (e, stack) {
+      AppLog.error('Defender exclusion change failed', error: e, stack: stack);
+      if (mounted) _showSnack('$e', isError: true);
+    } finally {
+      if (mounted) setState(() => _defenderBusy = false);
+    }
+  }
+
+  Future<_DefenderChoice?> _askDefender(
+    List<String> paths,
+    List<String> missing,
+  ) {
+    final alreadySet = paths.length - missing.length;
+
+    TextStyle mono() => const TextStyle(fontSize: 11, fontFamily: 'monospace');
+
+    return showDialog<_DefenderChoice>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change antivirus exclusions?'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Why this is needed',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'The NTE mod loader is a DLL injector. Windows Defender '
+                  'removes that kind of file on sight, both from the game and '
+                  'from Modlinq\'s own folder. Without an exclusion your mods '
+                  'stop loading after the first game start, and every repair '
+                  'is undone within minutes.',
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'What stops being scanned',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                for (final path in paths)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: SelectableText(
+                      '${missing.contains(path) ? '+ ' : '. '}$path',
+                      style: mono(),
+                    ),
+                  ),
+                if (alreadySet > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '$alreadySet of ${paths.length} already excluded.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                const Text(
+                  'Possible side effects',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '• Nothing inside those folders is scanned any more. Real '
+                  'malware placed there would not be caught.\n'
+                  '• The game folder holds executable code, and mods you '
+                  'install land in it. Downloaded mods are therefore never '
+                  'scanned either — only install mods from sources you trust.\n'
+                  '• The change is machine-wide, not just for Modlinq.\n'
+                  '• Changing this needs administrator rights, so Windows '
+                  'will ask for confirmation.\n'
+                  '• Reversible at any time with "Remove exclusions" here, or '
+                  'in Windows Security.',
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Prefer to do it yourself? Copy the commands and run them '
+                  'in PowerShell as administrator.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(
+              ClipboardData(text: _exclusionCommands()),
+            ),
+            child: const Text('Copy commands'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(_DefenderChoice.remove),
+            child: const Text('Remove exclusions'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: missing.isEmpty
+                ? null
+                : () => Navigator.of(dialogContext).pop(_DefenderChoice.add),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+            ),
+            child: Text(
+              missing.isEmpty
+                  ? 'Nothing to add'
+                  : 'Add ${missing.length} exclusion(s)',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Every folder the loader files pass through.
+  List<String> _exclusionPaths() {
+    final gamePath = _nteGamePathController.text.trim();
+
+    return DefenderExclusions.pathsFor(
+      installDir: UpdateService.installDir().path,
+      appDataDir: PathHelper.getAppDataPath(),
+      nteGamePath: gamePath.isEmpty ? null : gamePath,
+    );
+  }
+
+  String _exclusionCommands() => _exclusionPaths()
+      .map((path) => 'Add-MpPreference -ExclusionPath "$path"')
+      .join('\n');
 
   Future<void> _copyDiagnostics() async {
     final header = [
@@ -2529,3 +2739,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with TickerProv
     );
   }
 }
+
+/// What the antivirus dialog was answered with.
+enum _DefenderChoice { add, remove }

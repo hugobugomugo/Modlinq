@@ -56,6 +56,15 @@ class ConfigService {
   /// Where settings are being written. Exposed so tests can prove isolation.
   String? get debugConfigFilePath => _configFile?.path;
 
+  /// Every stored setting, for a diagnostics report.
+  ///
+  /// Reads the store directly rather than going through the typed getters:
+  /// a key nobody wrote an accessor for is exactly the one worth seeing when
+  /// a user's install behaves in a way the code does not explain.
+  Map<String, Object?> debugSnapshot() => {
+    for (final key in _prefs.getKeys()) key: _prefs.get(key),
+  };
+
   void _initConfigFile(String? configDirectory) {
     try {
       final appDataPath = configDirectory ?? PathHelper.getAppDataPath();

@@ -8,14 +8,35 @@ import 'package:modlinq/games/deadlock/deadlock_gameinfo.dart';
 const _vanilla = '''
 "GameInfo"
 {
-	game 		"Deadlock"
-	title 		"Deadlock"
+	game 		"citadel"
+	title 		"Citadel"
 
+	FileSystem
+	{
+		// Shaped like the real Deadlock gameinfo.gi: no explicit Mod/Write keys,
+		// so Source 2 derives MOD and DEFAULT_WRITE_PATH from the first Game path.
+		SearchPaths
+		{
+			Game_UILanguage		citadel_*LANGUAGE*
+			Game_LowViolence	citadel_lv
+			Game				citadel
+			Game				core
+		}
+
+		"UserSettingsPathID"		"USRLOCAL"
+		"LegacyUserSettingsPathID"	"MOD"
+	}
+}
+''';
+
+/// A file that already pins the ids itself, e.g. patched by another manager.
+const _pinned = '''
+"GameInfo"
+{
 	FileSystem
 	{
 		SearchPaths
 		{
-			Game_LowViolence	citadel_lv
 			Game				citadel
 			Mod					citadel
 			Write				citadel
@@ -113,6 +134,45 @@ void main() {
       writeVanilla('"GameInfo"\n{\n\tgame "Deadlock"\n}\n');
 
       expect(() => gameinfo.patch(), throwsA(isA<StateError>()));
+    });
+
+    test('pins Mod and Write to citadel so keybindings keep resolving', () {
+      writeVanilla();
+      gameinfo.patch();
+
+      final lines = File(gameinfoPath()).readAsLinesSync();
+      final firstGame = lines.indexWhere(
+        (l) => RegExp(r'^\s*Game\s+\S').hasMatch(l),
+      );
+      final mod = lines.indexWhere(
+        (l) => RegExp(r'^\s*Mod\s+citadel\s*$').hasMatch(l),
+      );
+      final write = lines.indexWhere(
+        (l) => RegExp(r'^\s*Write\s+citadel\s*$').hasMatch(l),
+      );
+
+      // Without these, MOD resolves to citadel/addons and the game aborts on
+      // cfg/user_keys_default.vcfg: "Unable to read default keybinding
+      // configuration".
+      expect(lines[firstGame], contains('citadel/addons'));
+      expect(mod, greaterThan(firstGame));
+      expect(write, greaterThan(mod));
+    });
+
+    test('does not duplicate Mod/Write keys the file already has', () {
+      writeVanilla(_pinned);
+      gameinfo.patch();
+
+      final lines = File(gameinfoPath()).readAsLinesSync();
+      final mods = lines
+          .where((l) => RegExp(r'^\s*Mod\s+citadel\s*$').hasMatch(l))
+          .length;
+      final writes = lines
+          .where((l) => RegExp(r'^\s*Write\s+citadel\s*$').hasMatch(l))
+          .length;
+
+      expect(mods, 1);
+      expect(writes, 1);
     });
   });
 

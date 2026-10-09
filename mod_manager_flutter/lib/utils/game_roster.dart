@@ -1,4 +1,5 @@
 import '../models/game_type.dart';
+import 'deadlock_characters.dart';
 import 'mod_categories.dart';
 import 'nte_characters.dart';
 import 'ww_characters.dart';
@@ -35,16 +36,36 @@ class GameRoster {
       assetFolder: 'assets/characters_nte',
       displayNameOf: getNteCharacterDisplayName,
     ),
-    // Deadlock mods are not tied to a hero roster; they are grouped by the
-    // user's own categories, like NTE's, but without a character list.
     GameType.deadlock => GameRoster(
-      characterIds: const [],
+      characterIds: deadlockCharacters,
       assetFolder: 'assets/characters_deadlock',
-      displayNameOf: (id) => id,
+      displayNameOf: getDeadlockCharacterDisplayName,
     ),
   };
 
   String iconPathFor(String characterId) => '$assetFolder/$characterId.png';
+
+  /// The roster id a human-readable [label] names, or null when it names
+  /// nobody on this roster.
+  ///
+  /// GameBanana files a mod under a subcategory such as "Grey Talon", "Mo &
+  /// Krill" or "Jane Doe"; this turns that into the id the library groups by.
+  /// Matching ignores case, spacing and punctuation, so "Mo & Krill" and
+  /// "mo_krill" both land on the same hero.
+  String? idForLabel(String label) {
+    final wanted = _squash(label);
+    if (wanted.isEmpty) return null;
+
+    for (final id in characterIds) {
+      if (_squash(id) == wanted) return id;
+      if (_squash(displayNameOf(id)) == wanted) return id;
+    }
+
+    return null;
+  }
+
+  static String _squash(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   /// Roster plus the shared buckets, for pickers that must offer every
   /// destination a mod can be assigned to.

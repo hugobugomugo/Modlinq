@@ -66,4 +66,31 @@ void main() {
       );
     });
   });
+
+  group('idForLabel', () {
+    test('maps a GameBanana subcategory onto a roster id', () {
+      final roster = GameRoster.of(GameType.deadlock);
+
+      expect(roster.idForLabel('Mina'), 'mina');
+      expect(roster.idForLabel('Grey Talon'), 'grey_talon');
+      expect(roster.idForLabel('Mo & Krill'), 'mo_krill');
+    });
+
+    test('ignores case, spacing and punctuation', () {
+      final roster = GameRoster.of(GameType.deadlock);
+
+      expect(roster.idForLabel('grey_talon'), 'grey_talon');
+      expect(roster.idForLabel('  MO & KRILL '), 'mo_krill');
+    });
+
+    test('a label nobody on the roster answers to returns null', () {
+      expect(GameRoster.of(GameType.deadlock).idForLabel('Gordon Freeman'), isNull);
+      expect(GameRoster.of(GameType.deadlock).idForLabel(''), isNull);
+    });
+
+    test('works for the other games too, they share the mechanism', () {
+      expect(GameRoster.of(GameType.nte).idForLabel('Mint'), 'mint');
+      expect(GameRoster.of(GameType.nte).idForLabel('Esper Zero'), 'zero');
+    });
+  });
 }

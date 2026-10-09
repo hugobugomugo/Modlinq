@@ -3,6 +3,7 @@ import '../models/game_type.dart';
 import '../models/nte_mod.dart';
 import '../utils/mod_categories.dart';
 import '../utils/game_roster.dart';
+import '../utils/deadlock_characters.dart';
 import '../utils/nte_characters.dart';
 import 'nte_mod_library.dart';
 
@@ -25,9 +26,13 @@ abstract class FileModManager {
 
   /// Copies folders and archives into the library. [skipped] collects sources
   /// that held nothing installable, with the reason.
+  /// [nameOverride] names the resulting mod instead of deriving the name from
+  /// the file, which is how a marketplace install keeps the title the user
+  /// clicked. Only honoured for a single source; a batch keeps its own names.
   Future<List<NteMod>> import(
     List<String> paths, {
     required Map<String, String> skipped,
+    String? nameOverride,
   });
 
   String? previewImageFor(String modName);
@@ -69,12 +74,20 @@ class NteModsAdapter {
 
   /// A mod's group: the category the user assigned, otherwise the character
   /// detected from its folder name, otherwise the unknown bucket.
-  static String groupOf(NteMod mod) {
+  ///
+  /// Detection follows the loaded game. Both pak games share this adapter, so
+  /// a hardcoded roster here filed Deadlock mods under NTE's espers.
+  String groupOf(NteMod mod) {
     final assigned = mod.category;
     if (assigned != null && assigned.isNotEmpty) return assigned;
 
-    return detectNteCharacter(mod.name) ?? ModCategories.unknown;
+    return _detect(mod.name) ?? ModCategories.unknown;
   }
+
+  String? _detect(String modName) => switch (gameType) {
+    GameType.deadlock => detectDeadlockCharacter(modName),
+    _ => detectNteCharacter(modName),
+  };
 
   ModInfo _toModInfo(NteMod mod) => ModInfo(
     id: mod.name,
@@ -113,8 +126,14 @@ class NteModsAdapter {
   }
 
   /// Characters get their roster name; free-form categories keep theirs.
-  static String _labelFor(String id) =>
-      nteCharacters.contains(id) ? getNteCharacterDisplayName(id) : id;
+  ///
+  /// The roster follows the loaded game, same as detection does: reading NTE's
+  /// esper names here left every Deadlock group labelled with its raw id, so
+  /// the grid said "grey_talon" and "mo_krill".
+  String _labelFor(String id) {
+    final roster = GameRoster.of(gameType);
+    return roster.characterIds.contains(id) ? roster.displayNameOf(id) : id;
+  }
 
   /// Mods grouped by the special buckets, for the screen to render.
   Map<String, List<ModInfo>> specialBuckets(List<ModInfo> mods) {

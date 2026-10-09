@@ -365,17 +365,19 @@ class NteModManager implements FileModManager {
   Future<List<NteMod>> import(
     List<String> paths, {
     required Map<String, String> skipped,
+    String? nameOverride,
   }) async {
     final imported = <NteMod>[];
+    final name = paths.length == 1 ? nameOverride : null;
 
     for (final path in paths) {
       try {
         final NteMod? mod;
 
         if (FileSystemEntity.isDirectorySync(path)) {
-          mod = library.importDirectory(path);
+          mod = library.importDirectory(path, nameOverride: name);
         } else if (NteModLibrary.isSupportedArchive(path)) {
-          mod = await library.importArchive(path);
+          mod = await library.importArchive(path, nameOverride: name);
         } else {
           skipped[p.basename(path)] = 'Unsupported file type';
           continue;

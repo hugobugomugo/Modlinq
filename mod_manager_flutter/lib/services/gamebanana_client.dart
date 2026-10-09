@@ -33,8 +33,20 @@ class GameBananaMod {
   final String name;
   final String author;
   final String profileUrl;
+  /// Grid-sized art, 530px wide where GameBanana has it.
   final String? thumbnailUrl;
+
+  /// Best available art, kept as the mod's preview once it is installed: a
+  /// library card is far larger than a marketplace tile, so the small variant
+  /// the grid browses with looks upscaled there.
+  final String? previewUrl;
+
   final String? category;
+
+  /// The subcategory the uploader filed the mod under. For every supported
+  /// game this is the character: "Mina", "Grey Talon", "Jane Doe". Null for
+  /// mods that are not character-specific, such as HUD or map mods.
+  final String? subCategory;
   final DateTime? updatedAt;
 
   /// Whether the submission has files at all. Pages, guides and WiPs show up
@@ -55,7 +67,9 @@ class GameBananaMod {
     required this.profileUrl,
     required this.hasFiles,
     this.thumbnailUrl,
+    this.previewUrl,
     this.category,
+    this.subCategory,
     this.updatedAt,
     this.likes = 0,
     this.views = 0,
@@ -72,17 +86,42 @@ class GameBananaMod {
       author: (json['_aSubmitter']?['_sName'] ?? '') as String,
       profileUrl: (json['_sProfileUrl'] ?? '') as String,
       hasFiles: (json['_bHasFiles'] ?? false) as bool,
-      // 220px variant: the grid never shows anything bigger, and the full
-      // screenshots are megabytes each.
-      thumbnailUrl: first == null
-          ? null
-          : '${first['_sBaseUrl']}/${first['_sFile220'] ?? first['_sFile']}',
+      // Not every image carries every variant - plenty of records only have
+      // _sFile100 - so each size is picked from what is actually there.
+      thumbnailUrl: _imageUrl(first, const [
+        '_sFile530',
+        '_sFile220',
+        '_sFile',
+        '_sFile100',
+      ]),
+      previewUrl: _imageUrl(first, const [
+        '_sFile',
+        '_sFile530',
+        '_sFile220',
+        '_sFile100',
+      ]),
       category: json['_aRootCategory']?['_sName'] as String?,
+      subCategory: json['_aSubCategory']?['_sName'] as String?,
       updatedAt: _dateOf(json['_tsDateModified'] ?? json['_tsDateAdded']),
       likes: (json['_nLikeCount'] ?? 0) as int,
       views: (json['_nViewCount'] ?? 0) as int,
       isAdult: (json['_bHasContentRatings'] ?? false) as bool,
     );
+  }
+
+  /// First variant in [keys] the record actually carries.
+  static String? _imageUrl(Map<String, dynamic>? image, List<String> keys) {
+    if (image == null) return null;
+
+    final base = image['_sBaseUrl'] as String?;
+    if (base == null || base.isEmpty) return null;
+
+    for (final key in keys) {
+      final file = image[key] as String?;
+      if (file != null && file.isNotEmpty) return '$base/$file';
+    }
+
+    return null;
   }
 
   static DateTime? _dateOf(Object? timestamp) => timestamp is int

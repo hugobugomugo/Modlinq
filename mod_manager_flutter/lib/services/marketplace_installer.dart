@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 
 import '../games/deadlock/deadlock_manager.dart';
 import '../models/game_type.dart';
+import '../utils/game_roster.dart';
+import '../utils/mod_name.dart';
 import '../utils/path_helper.dart';
 import 'api_service.dart';
 import 'app_log.dart';
@@ -45,9 +47,15 @@ class MarketplaceInstaller {
     final config = await ApiService.getConfigService();
     final game = GameTypeX.fromKey(job.gameKey);
 
-    final installedName = await _importArchive(archive, game, config);
+    final installedName = await _importArchive(
+      archive,
+      game,
+      config,
+      ModName.sanitize(job.mod.name),
+    );
 
     await config.setMarketplaceInstalled(job.gameKey, job.mod.id, true);
+    await _applyCategory(job.mod, installedName, game, config);
     await _savePreview(job.mod, installedName, game, config);
 
     AppLog.info(
@@ -98,10 +106,15 @@ class MarketplaceInstaller {
   }
 
   /// Routes the archive to whichever installer the game uses.
+  ///
+  /// [desiredName] is the marketplace title. Without it the library shows
+  /// whatever the uploader called the archive, which is rarely the name on the
+  /// store page.
   Future<String> _importArchive(
     File archive,
     GameType game,
     ConfigService config,
+    String? desiredName,
   ) async {
     if (game.usesPakMods) {
       final manager = _fileManagerFor(game, config);
@@ -109,8 +122,15 @@ class MarketplaceInstaller {
         throw StateError('Set the game folder in settings first');
       }
 
+      final taken = manager.listMods().map((mod) => mod.name).toSet();
       final skipped = <String, String>{};
-      final imported = await manager.import([archive.path], skipped: skipped);
+      final imported = await manager.import(
+        [archive.path],
+        skipped: skipped,
+        nameOverride: desiredName == null
+            ? null
+            : ModName.unique(desiredName, taken),
+      );
 
       if (imported.isEmpty) {
         throw StateError(skipped.values.firstOrNull ?? 'Nothing imported');
@@ -133,7 +153,51 @@ class MarketplaceInstaller {
 
     if (imported.isEmpty) throw StateError('Mod was already there');
 
-    return imported.first;
+    // 3DMigoto mods arrive folder by folder, so the title is applied after the
+    // fact. A failed rename is not worth losing the install over: the mod then
+    // simply keeps its folder name.
+    final installed = imported.first;
+    if (desiredName == null) return installed;
+
+    final unique = ModName.unique(desiredName, (await modManager.scanMods()).toSet());
+    if (unique == installed) return installed;
+
+    return await modManager.renameMod(installed, unique) ? unique : installed;
+  }
+
+  /// Files the fresh mod under the character GameBanana already tagged it
+  /// with.
+  ///
+  /// The uploader picks that subcategory when submitting, so the library can
+  /// group a Mina skin under Mina without guessing from the mod's name.
+  Future<void> _applyCategory(
+    GameBananaMod mod,
+    String installedName,
+    GameType game,
+    ConfigService config,
+  ) async {
+    final label = mod.subCategory;
+    if (label == null || label.isEmpty) return;
+
+    final id = GameRoster.of(game).idForLabel(label);
+
+    try {
+      if (game.usesPakMods) {
+        // These take free-form categories, so a hero the roster has not caught
+        // up with still groups the mod under its own name.
+        await _fileManagerFor(
+          game,
+          config,
+        )?.setCategory(installedName, id ?? label);
+        return;
+      }
+
+      // ZZZ and WUWA tag by roster id only; anything else would draw a
+      // character card for someone who is not in the game.
+      if (id != null) await config.setModCharacterTag(installedName, id);
+    } catch (_) {
+      // Grouping is cosmetic; an install is not worth failing over it.
+    }
   }
 
   /// Keeps the marketplace thumbnail as the mod's preview image.
@@ -146,7 +210,9 @@ class MarketplaceInstaller {
     GameType game,
     ConfigService config,
   ) async {
-    final url = mod.thumbnailUrl;
+    // The library card is much larger than a marketplace tile, so the biggest
+    // variant is stored locally even though the grid browses with a small one.
+    final url = mod.previewUrl ?? mod.thumbnailUrl;
     if (url == null) return;
 
     try {

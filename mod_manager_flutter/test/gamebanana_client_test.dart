@@ -100,6 +100,79 @@ void main() {
     });
   });
 
+  group('preview art', () {
+    Map<String, dynamic> feedWith(List<Map<String, dynamic>> images) => {
+      '_aMetadata': {'_nRecordCount': 1},
+      '_aRecords': [
+        {
+          '_idRow': 1,
+          '_sModelName': 'Mod',
+          '_sName': 'Art',
+          '_sProfileUrl': 'https://gamebanana.com/mods/1',
+          '_bHasFiles': true,
+          '_aSubmitter': {'_sName': 'someone'},
+          '_aPreviewMedia': {'_aImages': images},
+        },
+      ],
+    };
+
+    Future<GameBananaMod> modWith(List<Map<String, dynamic>> images) async {
+      final client = GameBananaClient(
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(feedWith(images)), 200),
+        ),
+      );
+
+      return (await client.feed(gameId: 1)).single;
+    }
+
+    test('browses with 530 but keeps the original for the library', () async {
+      final mod = await modWith([
+        {
+          '_sBaseUrl': 'https://images.gamebanana.com/img/ss/mods',
+          '_sFile': 'full.jpg',
+          '_sFile530': '530-90_full.jpg',
+          '_sFile220': '220-90_full.jpg',
+          '_sFile100': '100-90_full.jpg',
+        },
+      ]);
+
+      // A library card is far bigger than a 220px tile, which is what made
+      // installed mods look soft.
+      expect(
+        mod.thumbnailUrl,
+        'https://images.gamebanana.com/img/ss/mods/530-90_full.jpg',
+      );
+      expect(
+        mod.previewUrl,
+        'https://images.gamebanana.com/img/ss/mods/full.jpg',
+      );
+    });
+
+    test('uses whatever variant a record actually carries', () async {
+      // Plenty of records only ship the 100px thumbnail.
+      final mod = await modWith([
+        {
+          '_sBaseUrl': 'https://images.gamebanana.com/img/ss/mods',
+          '_sFile100': '100-90_small.jpg',
+        },
+      ]);
+
+      expect(
+        mod.thumbnailUrl,
+        'https://images.gamebanana.com/img/ss/mods/100-90_small.jpg',
+      );
+      expect(mod.previewUrl, mod.thumbnailUrl);
+    });
+
+    test('a record without images has no art at all', () async {
+      final mod = await modWith(const []);
+
+      expect(mod.thumbnailUrl, isNull);
+      expect(mod.previewUrl, isNull);
+    });
+  });
+
   group('index', () {
     Map<String, dynamic> indexPage({int total = 120}) => {
       '_aMetadata': {'_nRecordCount': total, '_nPerpage': 50},

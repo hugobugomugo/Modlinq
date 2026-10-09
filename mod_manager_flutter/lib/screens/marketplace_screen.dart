@@ -9,6 +9,7 @@ import '../services/archive_service.dart';
 import '../services/gamebanana_client.dart';
 import '../services/marketplace_queue.dart';
 import '../utils/state_providers.dart';
+import 'components/mod_cover_image.dart';
 
 /// Browses GameBanana inside the app.
 ///
@@ -588,9 +589,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                           color: Colors.grey[700],
                         ),
                       )
-                    : Image.network(
+                    : ModCoverImage.network(
                         mod.thumbnailUrl!,
-                        fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(
                           color: Colors.black.withValues(alpha: 0.2),
                         ),

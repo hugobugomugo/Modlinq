@@ -2,8 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/character_info.dart';
 import '../../utils/mod_categories.dart';
+import 'mod_cover_image.dart';
 
 class ModCardWidget extends StatefulWidget {
+  /// Height of the name strip under the artwork.
+  ///
+  /// The grid turns a column width into a row height with it, so it lives next
+  /// to the padding and text style that produce it: 16px padding top and
+  /// bottom plus two 14px lines.
+  static const double footerHeight = 74;
+
   final ModInfo mod;
   final bool isDarkMode;
   final Map<String, String> modCharacterTags;
@@ -73,7 +81,12 @@ class _ModCardWidgetState extends State<ModCardWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
+              AspectRatio(
+                // The 16:9 block the marketplace tile uses, so an installed mod
+                // is framed exactly like the card it came from. The portrait
+                // box this replaces cropped more than half the width off
+                // landscape artwork.
+                aspectRatio: 16 / 9,
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
                   child: Container(
@@ -97,12 +110,9 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                         if (widget.mod.imagePath != null && File(widget.mod.imagePath!).existsSync())
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
-                            child: Image.file(
+                            child: ModCoverImage.file(
                               File(widget.mod.imagePath!),
-                              fit: BoxFit.cover,
                               key: ValueKey('${widget.mod.id}_${widget.mod.imagePath}'),
-                              cacheWidth: null,
-                              cacheHeight: null,
                             ),
                           )
                         else
@@ -281,8 +291,12 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                 ),
               ),
               
-              Container(
+              // Takes whatever the 16:9 block leaves over, so a row a few
+              // pixels taller than computed cannot overflow.
+              Expanded(
+                child: Container(
                 padding: const EdgeInsets.all(16),
+                alignment: Alignment.centerLeft,
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
                   color: widget.mod.isActive
@@ -305,6 +319,7 @@ class _ModCardWidgetState extends State<ModCardWidget> {
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
                 ),
               ),
             ],

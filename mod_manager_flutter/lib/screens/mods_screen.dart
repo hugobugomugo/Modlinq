@@ -32,6 +32,12 @@ import '../services/nte_mod_manager.dart';
 import '../services/nte_mods_adapter.dart';
 import 'components/character_cards_list_widget.dart';
 import 'components/mod_card_widget.dart';
+import 'components/mod_cover_image.dart';
+
+/// The mod grid: six fixed columns with 16px gutters. Named because the row
+/// height is derived from them at layout time.
+const int _modGridColumns = 6;
+const double _modGridSpacing = 16;
 
 class ModsScreen extends ConsumerStatefulWidget {
   const ModsScreen({super.key});
@@ -2364,7 +2370,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                                   const SizedBox(height: 24),
                                   SizedBox(
                                     width: 250,
-                                    height: 350,
+                                    height: 250 * 9 / 16 +
+                                        ModCardWidget.footerHeight,
                                     child: _buildAddModCard(),
                                   ),
                                 ],
@@ -2382,17 +2389,35 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                                       },
                                       physics: const BouncingScrollPhysics(),
                                     ),
-                                child: GridView.builder(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                // A card is a 16:9 image plus a name strip, so
+                                // the row height follows from the column width.
+                                // A fixed childAspectRatio cannot do both: the
+                                // value that fits wide cards clips the strip on
+                                // a narrow window, the value that fits narrow
+                                // cards leaves wide ones half empty.
+                                final cardWidth =
+                                    ((constraints.maxWidth -
+                                                AppConstants.smallPadding * 2 -
+                                                _modGridSpacing *
+                                                    (_modGridColumns - 1)) /
+                                            _modGridColumns)
+                                        .clamp(60.0, double.infinity);
+
+                                return GridView.builder(
                                   controller: _modsScrollController,
                                   padding: EdgeInsets.symmetric(
                                     horizontal: AppConstants.smallPadding,
                                   ),
                                   gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 6,
-                                        childAspectRatio: 0.7,
-                                        crossAxisSpacing: 16,
-                                        mainAxisSpacing: 16,
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: _modGridColumns,
+                                        mainAxisExtent:
+                                            cardWidth * 9 / 16 +
+                                            ModCardWidget.footerHeight,
+                                        crossAxisSpacing: _modGridSpacing,
+                                        mainAxisSpacing: _modGridSpacing,
                                       ),
                                   itemCount: currentSkins.length + 1,
                                   itemBuilder: (context, index) {
@@ -2434,6 +2459,8 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                                         ),
                                       ),
                                     );
+                                  },
+                                );
                                   },
                                 ),
                               ),
@@ -2512,7 +2539,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: _isDragging
                         ? const Color(0xFF0EA5E9).withValues(alpha: 0.2)
@@ -2523,7 +2550,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                   ),
                   child: Icon(
                     _isDragging ? Icons.file_download : Icons.add,
-                    size: 48,
+                    size: 36,
                     color: _isDragging
                         ? const Color(0xFF0EA5E9)
                         : (isDarkMode
@@ -2531,7 +2558,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                               : Colors.black.withValues(alpha: 0.4)),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 Text(
                   _isDragging
                       ? loc.t('mods.empty.prompt')
@@ -2546,13 +2573,15 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                               : Colors.black.withValues(alpha: 0.6)),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     _isDragging
                         ? loc.t('mods.empty.add_folders')
                         : loc.t('mods.empty.drag'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
@@ -2582,7 +2611,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         borderRadius: BorderRadius.circular(AppConstants.modCardBorderRadius),
         child: Container(
           width: 200, // Fixed width for feedback
-          height: 280, // Fixed height for feedback
+          height: 200 * 9 / 16 + ModCardWidget.footerHeight,
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(
@@ -2611,10 +2640,9 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
                   ),
                   child:
                       mod.imagePath != null && File(mod.imagePath!).existsSync()
-                      ? Image.file(
-                          File(mod.imagePath!),
-                          fit: BoxFit.cover,
+                      ? SizedBox(
                           width: double.infinity,
+                          child: ModCoverImage.file(File(mod.imagePath!)),
                         )
                       : Container(
                           color: Colors.grey.withValues(alpha: 0.1),
@@ -3383,14 +3411,11 @@ class _ModCardWidgetState extends State<_ModCardWidget> {
                             File(widget.mod.imagePath!).existsSync())
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
-                            child: Image.file(
+                            child: ModCoverImage.file(
                               File(widget.mod.imagePath!),
-                              fit: BoxFit.cover,
                               key: ValueKey(
                                 '${widget.mod.id}_${widget.mod.imagePath}',
                               ),
-                              cacheWidth: null,
-                              cacheHeight: null,
                             ),
                           )
                         else

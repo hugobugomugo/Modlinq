@@ -159,7 +159,13 @@ class MarketplaceInstaller {
     final installed = imported.first;
     if (desiredName == null) return installed;
 
-    final unique = ModName.unique(desiredName, (await modManager.scanMods()).toSet());
+    // The mod that was just imported is in that list too, so it has to come
+    // out before the collision check: an archive whose folder already carries
+    // the store title would otherwise be renamed to "Title (2)" against
+    // itself.
+    final taken = (await modManager.scanMods()).toSet()..remove(installed);
+
+    final unique = ModName.unique(desiredName, taken);
     if (unique == installed) return installed;
 
     return await modManager.renameMod(installed, unique) ? unique : installed;

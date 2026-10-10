@@ -530,7 +530,12 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       final adapter = _nteAdapter;
       if (adapter == null) return;
 
-      final result = await adapter.toggle(mod);
+      // Single mode is a library rule, not a 3DMigoto one: pak games used to
+      // ignore it because this branch returns before the shared handling.
+      final result = await adapter.toggle(
+        mod,
+        exclusive: ref.read(activationModeProvider) == ActivationMode.single,
+      );
       if (result.locked.isNotEmpty) {
         _showSnack(loc.t('nte.mods.locked'), isError: true);
       }

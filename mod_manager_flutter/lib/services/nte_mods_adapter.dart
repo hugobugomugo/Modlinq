@@ -145,8 +145,53 @@ class NteModsAdapter {
     return buckets;
   }
 
-  Future<NteApplyResult> toggle(ModInfo mod) =>
-      manager.setEnabled(mod.id, !mod.isActive);
+  /// Flips [mod] on or off.
+  ///
+  /// In single mode ([exclusive]) switching a mod on first switches off every
+  /// other enabled mod of the same hero, so a hero wears one skin at a time -
+  /// the rule the 3DMigoto games already followed. Pak games used to skip it
+  /// entirely: the screen returned right after this call, so two Graves skins
+  /// could be on at once.
+  ///
+  /// The shared buckets are left alone: misc and unknown hold HUD, audio and
+  /// map mods that have nothing to do with each other, and turning the rest
+  /// of them off to enable one would be destructive, not exclusive.
+  Future<NteApplyResult> toggle(ModInfo mod, {bool exclusive = false}) async {
+    if (mod.isActive || !exclusive || ModCategories.isSpecial(mod.characterId)) {
+      return manager.setEnabled(mod.id, !mod.isActive);
+    }
+
+    final others = listMods().where(
+      (other) =>
+          other.id != mod.id &&
+          other.isActive &&
+          other.characterId == mod.characterId,
+    );
+
+    final applied = <String>[];
+    final locked = <String>[];
+    final errors = <String, String>{};
+    var loaderRepaired = false;
+    var gameRunning = false;
+
+    for (final other in [...others, mod]) {
+      final result = await manager.setEnabled(other.id, other.id == mod.id);
+
+      applied.addAll(result.applied);
+      locked.addAll(result.locked);
+      errors.addAll(result.errors);
+      loaderRepaired |= result.loaderRepaired;
+      gameRunning |= result.gameRunning;
+    }
+
+    return NteApplyResult(
+      applied: applied,
+      locked: locked,
+      errors: errors,
+      loaderRepaired: loaderRepaired,
+      gameRunning: gameRunning,
+    );
+  }
 
   Future<void> delete(ModInfo mod) => manager.delete(mod.id);
 

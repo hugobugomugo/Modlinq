@@ -13,10 +13,24 @@ class _FakeManager implements FileModManager {
   @override
   final GameType gameType;
 
-  final List<NteMod> mods;
+  List<NteMod> mods;
+
+  /// Every setEnabled, in order, as `name=true|false`.
+  final List<String> calls = [];
 
   @override
   List<NteMod> listMods() => mods;
+
+  @override
+  Future<NteApplyResult> setEnabled(String modName, bool enabled) async {
+    calls.add('$modName=$enabled');
+    mods = [
+      for (final mod in mods)
+        mod.name == modName ? mod.copyWith(enabled: enabled) : mod,
+    ];
+
+    return NteApplyResult(applied: [modName]);
+  }
 
   @override
   NteModLibrary get library => NteModLibrary('/nowhere');
@@ -32,8 +46,25 @@ class _FakeManager implements FileModManager {
       throw UnsupportedError('${invocation.memberName} is not part of grouping');
 }
 
-NteMod _mod(String name, {String? category}) =>
-    NteMod(name: name, dirPath: '/nowhere/$name', files: const [], category: category);
+/// Reports the hero's old skin as locked by the game, the way a running
+/// Deadlock does.
+class _FailingManager extends _FakeManager {
+  _FailingManager(super.gameType, super.mods);
+
+  @override
+  Future<NteApplyResult> setEnabled(String modName, bool enabled) async {
+    if (!enabled) return NteApplyResult(locked: [modName]);
+    return super.setEnabled(modName, enabled);
+  }
+}
+
+NteMod _mod(String name, {String? category, bool enabled = false}) => NteMod(
+  name: name,
+  dirPath: '/nowhere/$name',
+  files: const [],
+  category: category,
+  enabled: enabled,
+);
 
 void main() {
   NteModsAdapter adapterFor(GameType game, List<NteMod> mods) =>
@@ -92,6 +123,92 @@ void main() {
 
       expect(categories.single.id, 'paige');
       expect(categories.single.name, 'Paige');
+    });
+  });
+
+  group('single mode', () {
+    // A hero wears one skin at a time. Pak games ignored this rule entirely:
+    // two Graves skins could be enabled at once while the toggle said single.
+    test('enabling a skin turns the hero\'s other skins off', () async {
+      final manager = _FakeManager(GameType.deadlock, [
+        _mod('graves_one', enabled: true),
+        _mod('graves_two'),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final two = adapter.listMods().firstWhere((m) => m.id == 'graves_two');
+
+      await adapter.toggle(two, exclusive: true);
+
+      expect(manager.calls, ['graves_one=false', 'graves_two=true']);
+    });
+
+    test('another hero keeps whatever it had on', () async {
+      final manager = _FakeManager(GameType.deadlock, [
+        _mod('mina_skin', enabled: true),
+        _mod('graves_one', enabled: true),
+        _mod('graves_two'),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final two = adapter.listMods().firstWhere((m) => m.id == 'graves_two');
+
+      await adapter.toggle(two, exclusive: true);
+
+      expect(manager.calls, ['graves_one=false', 'graves_two=true']);
+    });
+
+    test('multi mode leaves the others alone', () async {
+      final manager = _FakeManager(GameType.deadlock, [
+        _mod('graves_one', enabled: true),
+        _mod('graves_two'),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final two = adapter.listMods().firstWhere((m) => m.id == 'graves_two');
+
+      await adapter.toggle(two);
+
+      expect(manager.calls, ['graves_two=true']);
+    });
+
+    test('switching a skin off never switches another on', () async {
+      final manager = _FakeManager(GameType.deadlock, [
+        _mod('graves_one', enabled: true),
+        _mod('graves_two', enabled: true),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final one = adapter.listMods().firstWhere((m) => m.id == 'graves_one');
+
+      await adapter.toggle(one, exclusive: true);
+
+      expect(manager.calls, ['graves_one=false']);
+    });
+
+    test('the shared buckets stay multi, whatever the mode says', () async {
+      // HUD, audio and map mods share the unknown bucket without having
+      // anything to do with each other.
+      final manager = _FakeManager(GameType.deadlock, [
+        _mod('updatedsounds', enabled: true),
+        _mod('v5_top_bar_plus'),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final bar = adapter.listMods().firstWhere((m) => m.id == 'v5_top_bar_plus');
+
+      await adapter.toggle(bar, exclusive: true);
+
+      expect(manager.calls, ['v5_top_bar_plus=true']);
+    });
+
+    test('a failure from any step is reported back', () async {
+      final manager = _FailingManager(GameType.deadlock, [
+        _mod('graves_one', enabled: true),
+        _mod('graves_two'),
+      ]);
+      final adapter = NteModsAdapter(manager);
+      final two = adapter.listMods().firstWhere((m) => m.id == 'graves_two');
+
+      final result = await adapter.toggle(two, exclusive: true);
+
+      expect(result.locked, ['graves_one']);
+      expect(result.applied, ['graves_two']);
     });
   });
 

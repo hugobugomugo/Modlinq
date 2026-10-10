@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../games/game_module.dart';
 import '../games/game_registry.dart';
@@ -124,7 +125,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       AppLog.info(
         'Marketplace loaded ${page.mods.length} of ${page.totalCount} mods '
         'for ${_game.key} in ${DateTime.now().difference(started).inMilliseconds} ms',
-        details: 'sort: $_sort, category: ${_categoryId ?? 'all'}, '
+        details:
+            'sort: $_sort, category: ${_categoryId ?? 'all'}, '
             'query: ${_query.isEmpty ? '-' : _query}',
       );
     } catch (e, stack) {
@@ -201,7 +203,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   int _compareForSort(GameBananaMod a, GameBananaMod b) => switch (_sort) {
     GameBananaClient.sortMostLiked => b.likes.compareTo(a.likes),
     GameBananaClient.sortMostDownloaded => b.views.compareTo(a.views),
-    _ => (b.updatedAt ?? DateTime(1970)).compareTo(a.updatedAt ?? DateTime(1970)),
+    _ => (b.updatedAt ?? DateTime(1970)).compareTo(
+      a.updatedAt ?? DateTime(1970),
+    ),
   };
 
   String? _categoryNameOf(int? id) {
@@ -392,10 +396,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
             for (final category in _categories)
               PopupMenuItem(
                 value: 'category:${category.id}',
-                child: _checkableRow(
-                  category.name,
-                  _categoryId == category.id,
-                ),
+                child: _checkableRow(category.name, _categoryId == category.id),
               ),
             const PopupMenuDivider(),
             PopupMenuItem(
@@ -531,8 +532,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       controller: _scrollController,
       padding: const EdgeInsets.only(bottom: 20),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 230,
-        mainAxisExtent: 236,
+        // Wide enough for a cover that shows what the mod does and for two
+        // lines of title: at 230 the art was a stamp and most names ended in
+        // an ellipsis.
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: _tileCoverHeight + _tileFooterHeight,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -554,97 +558,282 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
   }
 
+  /// Cover art of a tile. 16:9 at the widest column the grid allows.
+  static const double _tileCoverHeight = 300 * 9 / 16;
+
+  /// Title (two lines), author line and the install button below the cover.
+  static const double _tileFooterHeight = 97;
+
   Widget _buildCard(GameBananaMod mod, bool isDarkMode) {
     final job = _queue.jobFor(mod.id, _game.key);
-    final isInstalled =
-        _installedIds.contains('${mod.id}') ||
-        job?.status == MarketplaceJobStatus.done;
+    final isInstalled = _isInstalled(mod);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF111114) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isInstalled
-              ? const Color(0xFF10B981).withValues(alpha: 0.5)
-              : isDarkMode
-              ? Colors.white.withValues(alpha: 0.07)
-              : Colors.black.withValues(alpha: 0.06),
+    return InkWell(
+      onTap: () => _showPreview(mod, isDarkMode),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDarkMode ? const Color(0xFF111114) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isInstalled
+                ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                : isDarkMode
+                ? Colors.white.withValues(alpha: 0.07)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                SizedBox(
+                  height: _tileCoverHeight,
+                  width: double.infinity,
+                  child: mod.thumbnailUrl == null
+                      ? Container(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey[700],
+                          ),
+                        )
+                      : ModCoverImage.network(
+                          mod.thumbnailUrl!,
+                          errorBuilder: (_, _, _) => Container(
+                            color: Colors.black.withValues(alpha: 0.2),
+                          ),
+                        ),
+                ),
+                if (isInstalled)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: _badge('Installed', const Color(0xFF10B981)),
+                  ),
+                if (mod.isAdult)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: _badge('18+', Colors.pink.shade700),
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 30,
+                    child: Text(
+                      mod.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                        color: isDarkMode ? Colors.grey[200] : Colors.grey[900],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '@${mod.author}${mod.likes > 0 ? '  ♥ ${mod.likes}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 29,
+                    child: _buildInstallButton(mod, job, isInstalled),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              SizedBox(
-                height: 112,
-                width: double.infinity,
-                child: mod.thumbnailUrl == null
-                    ? Container(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          color: Colors.grey[700],
-                        ),
-                      )
-                    : ModCoverImage.network(
-                        mod.thumbnailUrl!,
-                        errorBuilder: (_, _, _) => Container(
-                          color: Colors.black.withValues(alpha: 0.2),
-                        ),
-                      ),
-              ),
-              if (isInstalled)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: _badge('Installed', const Color(0xFF10B981)),
-                ),
-              if (mod.isAdult)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: _badge('18+', Colors.pink.shade700),
-                ),
-            ],
+    );
+  }
+
+  /// Whether the library holds this mod, as recorded at install time.
+  ///
+  /// Deliberately not "the queue says the job finished": that job stays in the
+  /// queue for the rest of the session, so a mod installed and then deleted
+  /// kept reading "Installed" until the app was restarted. The queue writes
+  /// the record before it marks a job done, and finishing a job reloads this
+  /// list, so config alone is both correct and up to date.
+  bool _isInstalled(GameBananaMod mod) => _installedIds.contains('${mod.id}');
+
+  /// The mod at full size, because a grid tile cannot show either the art or
+  /// the title properly.
+  ///
+  /// Rebuilt from the queue while it is open, so an install started here
+  /// shows its progress without closing the dialog.
+  Future<void> _showPreview(GameBananaMod mod, bool isDarkMode) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: isDarkMode ? const Color(0xFF111114) : Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760, maxHeight: 720),
+          child: ListenableBuilder(
+            listenable: _queue,
+            builder: (context, _) => _buildPreviewBody(mod, isDarkMode),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewBody(GameBananaMod mod, bool isDarkMode) {
+    final job = _queue.jobFor(mod.id, _game.key);
+    final isInstalled = _isInstalled(mod);
+    final art = mod.previewUrl ?? mod.thumbnailUrl;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            // Contain, not cover: the point of opening this is seeing the
+            // whole picture, including the parts the tile cropped away.
+            Container(
+              height: 380,
+              width: double.infinity,
+              color: Colors.black,
+              child: art == null
+                  ? Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.grey[700],
+                    )
+                  : ModCoverImage.network(
+                      art,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.55),
+                  foregroundColor: Colors.white,
+                ),
+                tooltip: 'Close',
+              ),
+            ),
+            if (isInstalled)
+              Positioned(
+                top: 12,
+                left: 12,
+                child: _badge('Installed', const Color(0xFF10B981)),
+              ),
+            if (mod.isAdult)
+              Positioned(
+                bottom: 12,
+                left: 12,
+                child: _badge('18+', Colors.pink.shade700),
+              ),
+          ],
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   mod.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDarkMode ? Colors.grey[200] : Colors.grey[900],
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: isDarkMode ? Colors.grey[100] : Colors.grey[900],
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 6),
                 Text(
-                  '@${mod.author}${mod.likes > 0 ? '  ♥ ${mod.likes}' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  '@${mod.author}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 29,
-                  child: _buildInstallButton(mod, job, isInstalled),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (mod.subCategory != null) _chip(mod.subCategory!),
+                    if (mod.category != null) _chip(mod.category!),
+                    if (mod.likes > 0) _chip('♥ ${mod.likes}'),
+                    if (mod.views > 0) _chip('${mod.views} views'),
+                    if (mod.updatedAt != null) _chip(_dateOf(mod.updatedAt!)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    SizedBox(
+                      height: 34,
+                      child: _buildInstallButton(mod, job, isInstalled),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      height: 34,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openProfile(mod),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                        label: const Text(
+                          'GameBanana page',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+
+  Future<void> _openProfile(GameBananaMod mod) async {
+    if (mod.profileUrl.isEmpty) return;
+
+    final opened = await launchUrl(
+      Uri.parse(mod.profileUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened) _snack('Could not open the browser', isError: true);
+  }
+
+  static String _dateOf(DateTime value) =>
+      '${value.day.toString().padLeft(2, '0')}.'
+      '${value.month.toString().padLeft(2, '0')}.${value.year}';
+
+  Widget _chip(String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.grey.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+  );
 
   Widget _badge(String label, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -742,7 +931,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
       AppLog.info(
         'Queued "${mod.name}" (${mod.id}) for ${_game.key}',
-        details: 'file: ${file.name}, ${file.size} bytes, '
+        details:
+            'file: ${file.name}, ${file.size} bytes, '
             'scan: ${file.analysisResult ?? 'unknown'}',
       );
 

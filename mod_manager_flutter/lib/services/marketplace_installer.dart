@@ -54,7 +54,12 @@ class MarketplaceInstaller {
       ModName.sanitize(job.mod.name),
     );
 
-    await config.setMarketplaceInstalled(job.gameKey, job.mod.id, true);
+    await config.setMarketplaceInstalled(
+      job.gameKey,
+      job.mod.id,
+      true,
+      name: installedName,
+    );
     await _applyCategory(job.mod, installedName, game, config);
     await _savePreview(job.mod, installedName, game, config);
 

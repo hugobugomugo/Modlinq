@@ -210,24 +210,92 @@ class ConfigService {
   /// Without this the cards would still read "Install" after a successful
   /// install, because the library name rarely matches the GameBanana title.
   List<String> installedMarketplaceMods(String gameKey) =>
-      _prefs.getStringList('marketplace_installed_$gameKey') ?? [];
+      marketplaceInstalls(gameKey).keys.toList();
 
-  Future<bool> setMarketplaceInstalled(
+  /// Those ids with the library name each mod landed under.
+  ///
+  /// The name is what makes an install removable again: deleting a mod only
+  /// knows the library name, so without it the card kept reading "Installed"
+  /// for a mod that is no longer on disk. Entries written before the name was
+  /// recorded map to null and stay until the mod is installed again.
+  ///
+  /// Stored as `id:name` strings in the list the ids used to live in, so an
+  /// older config keeps working and an older build still reads the ids.
+  Map<String, String?> marketplaceInstalls(String gameKey) {
+    final entries = _prefs.getStringList(_marketplaceKey(gameKey)) ?? const [];
+
+    return {
+      for (final entry in entries)
+        if (entry.isNotEmpty)
+          entry.split(':').first: entry.contains(':')
+              ? entry.substring(entry.indexOf(':') + 1)
+              : null,
+    };
+  }
+
+  static String _marketplaceKey(String gameKey) =>
+      'marketplace_installed_$gameKey';
+
+  Future<bool> _writeMarketplaceInstalls(
     String gameKey,
-    int modId,
-    bool installed,
+    Map<String, String?> installs,
   ) async {
-    final ids = installedMarketplaceMods(gameKey).toSet();
-    installed ? ids.add('$modId') : ids.remove('$modId');
-
     try {
-      return await _prefs.setStringList(
-        'marketplace_installed_$gameKey',
-        ids.toList(),
-      );
+      return await _prefs.setStringList(_marketplaceKey(gameKey), [
+        for (final entry in installs.entries)
+          entry.value == null ? entry.key : '${entry.key}:${entry.value}',
+      ]);
     } catch (e) {
       return false;
     }
+  }
+
+  /// Records (or clears) an install. [name] is the folder the mod landed in.
+  Future<bool> setMarketplaceInstalled(
+    String gameKey,
+    int modId,
+    bool installed, {
+    String? name,
+  }) async {
+    final installs = marketplaceInstalls(gameKey);
+    installed ? installs['$modId'] = name : installs.remove('$modId');
+
+    return _writeMarketplaceInstalls(gameKey, installs);
+  }
+
+  /// Forgets the install that lives under [libraryName], after a delete.
+  Future<bool> forgetMarketplaceInstall(
+    String gameKey,
+    String libraryName,
+  ) async {
+    final installs = marketplaceInstalls(gameKey);
+    final before = installs.length;
+    installs.removeWhere((_, name) => name == libraryName);
+
+    if (installs.length == before) return true;
+
+    return _writeMarketplaceInstalls(gameKey, installs);
+  }
+
+  /// Follows a renamed mod, so deleting it later still clears its card.
+  Future<bool> renameMarketplaceInstall(
+    String gameKey,
+    String oldName,
+    String newName,
+  ) async {
+    final installs = marketplaceInstalls(gameKey);
+    final ids = installs.entries
+        .where((entry) => entry.value == oldName)
+        .map((entry) => entry.key)
+        .toList();
+
+    if (ids.isEmpty) return true;
+
+    for (final id in ids) {
+      installs[id] = newName;
+    }
+
+    return _writeMarketplaceInstalls(gameKey, installs);
   }
 
   /// Mods the user does not want to see, per game.

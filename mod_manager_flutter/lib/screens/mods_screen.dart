@@ -1353,6 +1353,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
 
       try {
         await adapter.rename(mod, newName);
+        await _followMarketplaceRename(mod.id, newName);
         await _loadNteMods(showLoading: false);
         _showSnack('"${mod.name}" renamed to "$newName"');
       } catch (e) {
@@ -1365,6 +1366,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     if (!mounted) return;
 
     if (success) {
+      await _followMarketplaceRename(mod.id, newName);
       await loadMods(showLoading: false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1375,6 +1377,29 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
         const SnackBar(content: Text('Rename failed — name may already be taken')),
       );
     }
+  }
+
+  /// Lets the marketplace card go back to "Install" once the mod is gone.
+  ///
+  /// The install is remembered by GameBanana id, which a deleted mod no
+  /// longer carries, so the lookup goes through the library name the install
+  /// was recorded under.
+  Future<void> _forgetMarketplaceInstall(String libraryName) async {
+    final config = await ApiService.getConfigService();
+    await config.forgetMarketplaceInstall(
+      ref.read(selectedGameProvider).key,
+      libraryName,
+    );
+  }
+
+  /// Keeps that link pointing at the mod after it is renamed.
+  Future<void> _followMarketplaceRename(String oldName, String newName) async {
+    final config = await ApiService.getConfigService();
+    await config.renameMarketplaceInstall(
+      ref.read(selectedGameProvider).key,
+      oldName,
+      newName,
+    );
   }
 
   Future<void> _deleteMod(ModInfo mod) async {
@@ -1404,6 +1429,7 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
       if (adapter == null) return;
 
       await adapter.delete(mod);
+      await _forgetMarketplaceInstall(mod.id);
       await _loadNteMods(showLoading: false);
       _showSnack('"${mod.name}" deleted');
       return;
@@ -1413,6 +1439,9 @@ class _ModsScreenState extends ConsumerState<ModsScreen>
     if (!mounted) return;
 
     if (success) {
+      await _forgetMarketplaceInstall(mod.id);
+      if (!mounted) return;
+
       final characters = ref.read(charactersProvider);
       final updatedCharacters = characters.map((char) {
         return char.copyWith(
